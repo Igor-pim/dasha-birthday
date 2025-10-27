@@ -25,7 +25,7 @@
     },
     {
       "id": "test",
-      "title": "Test",
+      "title": "QA",
       "description": "проверка поздравлений",
       "assigneeMode": "specific",
       "assignees": ["qa"]

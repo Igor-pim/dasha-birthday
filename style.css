@@ -114,9 +114,16 @@ body {
     transition: var(--transition);
     border-left: 4px solid var(--primary-color);
     position: relative;
-    touch-action: pan-y;
+    touch-action: none;
     -webkit-user-select: none;
     user-select: none;
+}
+
+/* iOS-specific: allow vertical scrolling */
+@supports (-webkit-touch-callout: none) {
+    .column-tasks {
+        -webkit-overflow-scrolling: touch;
+    }
 }
 
 .task-card:hover {

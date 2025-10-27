@@ -204,11 +204,11 @@ function createTaskElement(task) {
     taskDiv.addEventListener('dragstart', handleDragStart);
     taskDiv.addEventListener('dragend', handleDragEnd);
 
-    // Touch events for mobile - iOS Safari compatibility
-    taskDiv.addEventListener('touchstart', handleTouchStart, { passive: false });
-    taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false });
-    taskDiv.addEventListener('touchend', handleTouchEnd, { passive: false });
-    taskDiv.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    // Touch events for mobile
+    taskDiv.addEventListener('touchstart', handleTouchStart);
+    taskDiv.addEventListener('touchmove', handleTouchMove);
+    taskDiv.addEventListener('touchend', handleTouchEnd);
+    taskDiv.addEventListener('touchcancel', handleTouchEnd);
 
     // Click to open modal
     taskDiv.querySelector('.team-badge').addEventListener('click', (e) => {
@@ -265,73 +265,61 @@ function handleDrop(e) {
 let touchStartX, touchStartY;
 let isDragging = false;
 let draggedElement = null;
-let lastHoveredColumn = null;
+
+// Detect iOS
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
 function handleTouchStart(e) {
-    // Don't prevent default here to allow scrolling
     const taskId = parseInt(e.currentTarget.dataset.taskId);
     const task = tasks.find(t => t.id === taskId);
 
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 
-    // Long press detection - 350ms for iOS stability
+    // Long press detection
     touchTimeout = setTimeout(() => {
         isDragging = true;
         draggedTask = task;
         draggedElement = e.currentTarget;
-        lastHoveredColumn = task.columnId; // Initialize with current column
-
-        // Prevent scrolling during drag
-        e.currentTarget.style.touchAction = 'none';
-
-        // Visual feedback
         e.currentTarget.classList.add('dragging');
         e.currentTarget.style.position = 'fixed';
         e.currentTarget.style.zIndex = '1000';
         e.currentTarget.style.pointerEvents = 'none';
         e.currentTarget.style.width = e.currentTarget.offsetWidth + 'px';
 
-        // Vibration feedback on iOS (if supported)
-        if (navigator.vibrate) {
-            navigator.vibrate(50);
-        }
-
         // Position element at touch point
         e.currentTarget.style.left = touchStartX - e.currentTarget.offsetWidth / 2 + 'px';
         e.currentTarget.style.top = touchStartY - e.currentTarget.offsetHeight / 2 + 'px';
 
-        console.log('Drag started:', { taskId: task.id, columnId: task.columnId });
-    }, 350); // 350ms long press - more stable for iOS
+        // Vibration feedback
+        if (navigator.vibrate) {
+            navigator.vibrate(50);
+        }
+    }, 500); // 500ms long press
 }
 
 function handleTouchMove(e) {
-    if (touchTimeout && !isDragging) {
+    if (touchTimeout) {
         // If moved before long press, cancel
         const moveX = Math.abs(e.touches[0].clientX - touchStartX);
         const moveY = Math.abs(e.touches[0].clientY - touchStartY);
 
-        // Small threshold - allow slight finger movement on iOS
         if (moveX > 10 || moveY > 10) {
             clearTimeout(touchTimeout);
             touchTimeout = null;
+            // Allow scrolling on iOS
+            return;
         }
     }
 
-    // If we're dragging, prevent scrolling and move element
-    if (isDragging && draggedElement && e.touches.length > 0) {
+    if (isDragging && draggedElement) {
         e.preventDefault();
-        e.stopPropagation();
-
         const touch = e.touches[0];
         draggedElement.style.left = touch.clientX - draggedElement.offsetWidth / 2 + 'px';
         draggedElement.style.top = touch.clientY - draggedElement.offsetHeight / 2 + 'px';
 
-        // Highlight column under touch and save it
-        draggedElement.style.visibility = 'hidden';
+        // Highlight column under touch
         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-        draggedElement.style.visibility = 'visible';
-
         document.querySelectorAll('.column-tasks').forEach(col => {
             col.classList.remove('drag-over');
         });
@@ -340,11 +328,6 @@ function handleTouchMove(e) {
             const columnTasks = elementBelow.closest('.column-tasks');
             if (columnTasks) {
                 columnTasks.classList.add('drag-over');
-                const newHoveredColumn = columnTasks.dataset.columnId;
-                if (lastHoveredColumn !== newHoveredColumn) {
-                    console.log('Hovering over column:', newHoveredColumn);
-                    lastHoveredColumn = newHoveredColumn;
-                }
             }
         }
     }
@@ -354,20 +337,25 @@ function handleTouchEnd(e) {
     clearTimeout(touchTimeout);
 
     if (isDragging && draggedTask && draggedElement) {
-        e.preventDefault();
+        const touch = e.changedTouches[0];
 
-        console.log('Touch end:', {
-            draggedTask: draggedTask.id,
-            oldColumn: draggedTask.columnId,
-            lastHoveredColumn: lastHoveredColumn
-        });
+        // iOS-specific: temporarily hide element to find what's below
+        if (isIOS) {
+            draggedElement.style.visibility = 'hidden';
+        }
 
-        // Use the last hovered column from touchMove
-        if (lastHoveredColumn && lastHoveredColumn !== draggedTask.columnId) {
+        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+
+        if (isIOS) {
+            draggedElement.style.visibility = 'visible';
+        }
+
+        const columnTasks = elementBelow?.closest('.column-tasks');
+
+        if (columnTasks) {
+            const newColumnId = columnTasks.dataset.columnId;
             const oldColumnId = draggedTask.columnId;
-            moveTask(draggedTask.id, lastHoveredColumn, oldColumnId);
-        } else {
-            console.log('No column change - staying in same column');
+            moveTask(draggedTask.id, newColumnId, oldColumnId);
         }
 
         // Reset styles
@@ -378,16 +366,14 @@ function handleTouchEnd(e) {
         draggedElement.style.top = '';
         draggedElement.style.width = '';
         draggedElement.style.pointerEvents = '';
-        draggedElement.style.touchAction = '';
-        draggedElement.style.visibility = '';
+        if (isIOS) {
+            draggedElement.style.visibility = '';
+        }
     }
 
-    // Reset state
     isDragging = false;
     draggedTask = null;
     draggedElement = null;
-    touchTimeout = null;
-    lastHoveredColumn = null;
 
     // Remove drag-over class from all columns
     document.querySelectorAll('.column-tasks').forEach(col => {
