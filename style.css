@@ -114,7 +114,7 @@ body {
     transition: var(--transition);
     border-left: 4px solid var(--primary-color);
     position: relative;
-    touch-action: none;
+    touch-action: pan-y;
     -webkit-user-select: none;
     user-select: none;
 }

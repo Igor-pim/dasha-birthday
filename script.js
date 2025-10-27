@@ -274,11 +274,14 @@ function handleTouchStart(e) {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 
-    // Long press detection - reduced to 300ms for better UX
+    // Long press detection - 350ms for iOS stability
     touchTimeout = setTimeout(() => {
         isDragging = true;
         draggedTask = task;
         draggedElement = e.currentTarget;
+
+        // Prevent scrolling during drag
+        e.currentTarget.style.touchAction = 'none';
 
         // Visual feedback
         e.currentTarget.classList.add('dragging');
@@ -295,29 +298,27 @@ function handleTouchStart(e) {
         // Position element at touch point
         e.currentTarget.style.left = touchStartX - e.currentTarget.offsetWidth / 2 + 'px';
         e.currentTarget.style.top = touchStartY - e.currentTarget.offsetHeight / 2 + 'px';
-    }, 300); // 300ms long press
+    }, 350); // 350ms long press - more stable for iOS
 }
 
 function handleTouchMove(e) {
-    // If we're dragging, prevent scrolling
-    if (isDragging) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
     if (touchTimeout && !isDragging) {
         // If moved before long press, cancel
         const moveX = Math.abs(e.touches[0].clientX - touchStartX);
         const moveY = Math.abs(e.touches[0].clientY - touchStartY);
 
-        // Increased threshold for iOS
-        if (moveX > 15 || moveY > 15) {
+        // Small threshold - allow slight finger movement on iOS
+        if (moveX > 10 || moveY > 10) {
             clearTimeout(touchTimeout);
             touchTimeout = null;
         }
     }
 
+    // If we're dragging, prevent scrolling and move element
     if (isDragging && draggedElement && e.touches.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+
         const touch = e.touches[0];
         draggedElement.style.left = touch.clientX - draggedElement.offsetWidth / 2 + 'px';
         draggedElement.style.top = touch.clientY - draggedElement.offsetHeight / 2 + 'px';
@@ -341,9 +342,22 @@ function handleTouchEnd(e) {
     clearTimeout(touchTimeout);
 
     if (isDragging && draggedTask && draggedElement) {
+        e.preventDefault();
         const touch = e.changedTouches[0];
+
+        // Temporarily hide the dragged element to find element below
+        draggedElement.style.display = 'none';
         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        draggedElement.style.display = '';
+
         const columnTasks = elementBelow?.closest('.column-tasks');
+
+        console.log('Touch end:', {
+            x: touch.clientX,
+            y: touch.clientY,
+            elementBelow: elementBelow?.tagName,
+            columnTasks: columnTasks?.dataset.columnId
+        });
 
         if (columnTasks) {
             const newColumnId = columnTasks.dataset.columnId;
@@ -359,6 +373,7 @@ function handleTouchEnd(e) {
         draggedElement.style.top = '';
         draggedElement.style.width = '';
         draggedElement.style.pointerEvents = '';
+        draggedElement.style.touchAction = '';
     }
 
     // Reset state
