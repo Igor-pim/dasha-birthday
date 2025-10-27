@@ -265,6 +265,7 @@ function handleDrop(e) {
 let touchStartX, touchStartY;
 let isDragging = false;
 let draggedElement = null;
+let lastHoveredColumn = null;
 
 function handleTouchStart(e) {
     // Don't prevent default here to allow scrolling
@@ -279,6 +280,7 @@ function handleTouchStart(e) {
         isDragging = true;
         draggedTask = task;
         draggedElement = e.currentTarget;
+        lastHoveredColumn = task.columnId; // Initialize with current column
 
         // Prevent scrolling during drag
         e.currentTarget.style.touchAction = 'none';
@@ -298,6 +300,8 @@ function handleTouchStart(e) {
         // Position element at touch point
         e.currentTarget.style.left = touchStartX - e.currentTarget.offsetWidth / 2 + 'px';
         e.currentTarget.style.top = touchStartY - e.currentTarget.offsetHeight / 2 + 'px';
+
+        console.log('Drag started:', { taskId: task.id, columnId: task.columnId });
     }, 350); // 350ms long press - more stable for iOS
 }
 
@@ -323,8 +327,11 @@ function handleTouchMove(e) {
         draggedElement.style.left = touch.clientX - draggedElement.offsetWidth / 2 + 'px';
         draggedElement.style.top = touch.clientY - draggedElement.offsetHeight / 2 + 'px';
 
-        // Highlight column under touch
+        // Highlight column under touch and save it
+        draggedElement.style.visibility = 'hidden';
         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        draggedElement.style.visibility = 'visible';
+
         document.querySelectorAll('.column-tasks').forEach(col => {
             col.classList.remove('drag-over');
         });
@@ -333,6 +340,11 @@ function handleTouchMove(e) {
             const columnTasks = elementBelow.closest('.column-tasks');
             if (columnTasks) {
                 columnTasks.classList.add('drag-over');
+                const newHoveredColumn = columnTasks.dataset.columnId;
+                if (lastHoveredColumn !== newHoveredColumn) {
+                    console.log('Hovering over column:', newHoveredColumn);
+                    lastHoveredColumn = newHoveredColumn;
+                }
             }
         }
     }
@@ -343,26 +355,19 @@ function handleTouchEnd(e) {
 
     if (isDragging && draggedTask && draggedElement) {
         e.preventDefault();
-        const touch = e.changedTouches[0];
-
-        // Temporarily hide the dragged element to find element below
-        draggedElement.style.display = 'none';
-        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-        draggedElement.style.display = '';
-
-        const columnTasks = elementBelow?.closest('.column-tasks');
 
         console.log('Touch end:', {
-            x: touch.clientX,
-            y: touch.clientY,
-            elementBelow: elementBelow?.tagName,
-            columnTasks: columnTasks?.dataset.columnId
+            draggedTask: draggedTask.id,
+            oldColumn: draggedTask.columnId,
+            lastHoveredColumn: lastHoveredColumn
         });
 
-        if (columnTasks) {
-            const newColumnId = columnTasks.dataset.columnId;
+        // Use the last hovered column from touchMove
+        if (lastHoveredColumn && lastHoveredColumn !== draggedTask.columnId) {
             const oldColumnId = draggedTask.columnId;
-            moveTask(draggedTask.id, newColumnId, oldColumnId);
+            moveTask(draggedTask.id, lastHoveredColumn, oldColumnId);
+        } else {
+            console.log('No column change - staying in same column');
         }
 
         // Reset styles
@@ -374,6 +379,7 @@ function handleTouchEnd(e) {
         draggedElement.style.width = '';
         draggedElement.style.pointerEvents = '';
         draggedElement.style.touchAction = '';
+        draggedElement.style.visibility = '';
     }
 
     // Reset state
@@ -381,6 +387,7 @@ function handleTouchEnd(e) {
     draggedTask = null;
     draggedElement = null;
     touchTimeout = null;
+    lastHoveredColumn = null;
 
     // Remove drag-over class from all columns
     document.querySelectorAll('.column-tasks').forEach(col => {

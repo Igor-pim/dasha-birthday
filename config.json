@@ -5,7 +5,7 @@
   "columns": [
     {
       "id": "backlog",
-      "title": "Backlog благодарности",
+      "title": "Backlog благодарностей",
       "description": "накопились поздравления",
       "assigneeMode": "random"
     },
