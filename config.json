@@ -123,17 +123,17 @@
     {
       "id": 1,
       "columnId": "backlog",
-      "teamId": "developers"
+      "teamId": "analysts"
     },
     {
       "id": 2,
-      "columnId": "in-development",
+      "columnId": "backlog",
       "teamId": "developers"
     },
     {
       "id": 3,
-      "columnId": "code-review",
-      "teamId": "analysts"
+      "columnId": "backlog",
+      "teamId": "qa"
     }
   ]
 }

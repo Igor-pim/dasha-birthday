@@ -39,6 +39,33 @@ function initializeApp() {
 
     // Setup modal
     setupModal();
+
+    // Show mobile hint on touch devices
+    showMobileHintIfNeeded();
+}
+
+// Show hint for mobile users
+function showMobileHintIfNeeded() {
+    // Check if device supports touch
+    const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+    if (isTouchDevice && !localStorage.getItem('hintShown')) {
+        setTimeout(() => {
+            const hint = document.getElementById('mobile-hint');
+            hint.classList.add('show');
+
+            document.getElementById('hint-close').addEventListener('click', () => {
+                hint.classList.remove('show');
+                localStorage.setItem('hintShown', 'true');
+            });
+
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                hint.classList.remove('show');
+                localStorage.setItem('hintShown', 'true');
+            }, 5000);
+        }, 1000);
+    }
 }
 
 // Initialize tasks from config
@@ -177,10 +204,11 @@ function createTaskElement(task) {
     taskDiv.addEventListener('dragstart', handleDragStart);
     taskDiv.addEventListener('dragend', handleDragEnd);
 
-    // Touch events for mobile
-    taskDiv.addEventListener('touchstart', handleTouchStart);
-    taskDiv.addEventListener('touchmove', handleTouchMove);
-    taskDiv.addEventListener('touchend', handleTouchEnd);
+    // Touch events for mobile - iOS Safari compatibility
+    taskDiv.addEventListener('touchstart', handleTouchStart, { passive: false });
+    taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false });
+    taskDiv.addEventListener('touchend', handleTouchEnd, { passive: false });
+    taskDiv.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 
     // Click to open modal
     taskDiv.querySelector('.team-badge').addEventListener('click', (e) => {
@@ -239,38 +267,57 @@ let isDragging = false;
 let draggedElement = null;
 
 function handleTouchStart(e) {
+    // Don't prevent default here to allow scrolling
     const taskId = parseInt(e.currentTarget.dataset.taskId);
     const task = tasks.find(t => t.id === taskId);
 
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 
-    // Long press detection
+    // Long press detection - reduced to 300ms for better UX
     touchTimeout = setTimeout(() => {
         isDragging = true;
         draggedTask = task;
         draggedElement = e.currentTarget;
+
+        // Visual feedback
         e.currentTarget.classList.add('dragging');
         e.currentTarget.style.position = 'fixed';
         e.currentTarget.style.zIndex = '1000';
         e.currentTarget.style.pointerEvents = 'none';
-    }, 500); // 500ms long press
+        e.currentTarget.style.width = e.currentTarget.offsetWidth + 'px';
+
+        // Vibration feedback on iOS (if supported)
+        if (navigator.vibrate) {
+            navigator.vibrate(50);
+        }
+
+        // Position element at touch point
+        e.currentTarget.style.left = touchStartX - e.currentTarget.offsetWidth / 2 + 'px';
+        e.currentTarget.style.top = touchStartY - e.currentTarget.offsetHeight / 2 + 'px';
+    }, 300); // 300ms long press
 }
 
 function handleTouchMove(e) {
-    if (touchTimeout) {
+    // If we're dragging, prevent scrolling
+    if (isDragging) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    if (touchTimeout && !isDragging) {
         // If moved before long press, cancel
         const moveX = Math.abs(e.touches[0].clientX - touchStartX);
         const moveY = Math.abs(e.touches[0].clientY - touchStartY);
 
-        if (moveX > 10 || moveY > 10) {
+        // Increased threshold for iOS
+        if (moveX > 15 || moveY > 15) {
             clearTimeout(touchTimeout);
             touchTimeout = null;
         }
     }
 
-    if (isDragging && draggedElement) {
-        e.preventDefault();
+    if (isDragging && draggedElement && e.touches.length > 0) {
         const touch = e.touches[0];
         draggedElement.style.left = touch.clientX - draggedElement.offsetWidth / 2 + 'px';
         draggedElement.style.top = touch.clientY - draggedElement.offsetHeight / 2 + 'px';
@@ -310,12 +357,15 @@ function handleTouchEnd(e) {
         draggedElement.style.zIndex = '';
         draggedElement.style.left = '';
         draggedElement.style.top = '';
+        draggedElement.style.width = '';
         draggedElement.style.pointerEvents = '';
     }
 
+    // Reset state
     isDragging = false;
     draggedTask = null;
     draggedElement = null;
+    touchTimeout = null;
 
     // Remove drag-over class from all columns
     document.querySelectorAll('.column-tasks').forEach(col => {
