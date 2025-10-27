@@ -177,10 +177,10 @@ function createTaskElement(task) {
     taskDiv.addEventListener('dragstart', handleDragStart);
     taskDiv.addEventListener('dragend', handleDragEnd);
 
-    // Touch events for mobile
-    taskDiv.addEventListener('touchstart', handleTouchStart);
-    taskDiv.addEventListener('touchmove', handleTouchMove);
-    taskDiv.addEventListener('touchend', handleTouchEnd);
+    // Touch events for mobile (active listeners for preventDefault to work)
+    taskDiv.addEventListener('touchstart', handleTouchStart, { passive: false });
+    taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false });
+    taskDiv.addEventListener('touchend', handleTouchEnd, { passive: false });
 
     // Click to open modal
     taskDiv.querySelector('.team-badge').addEventListener('click', (e) => {
@@ -245,16 +245,39 @@ function handleTouchStart(e) {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 
+    // Prevent default iOS behavior (text selection, callout menu)
+    // but only after we've saved the touch coordinates
+    if (e.cancelable) {
+        e.preventDefault();
+    }
+
     // Long press detection
     touchTimeout = setTimeout(() => {
         isDragging = true;
         draggedTask = task;
         draggedElement = e.currentTarget;
         e.currentTarget.classList.add('dragging');
+
+        // Save original display and position for reliable elementFromPoint
+        e.currentTarget.dataset.originalDisplay = e.currentTarget.style.display;
+
         e.currentTarget.style.position = 'fixed';
         e.currentTarget.style.zIndex = '1000';
         e.currentTarget.style.pointerEvents = 'none';
-    }, 500); // 500ms long press
+
+        // Provide haptic feedback on iOS if available
+        if ('vibrate' in navigator) {
+            navigator.vibrate(50); // 50ms vibration
+        }
+
+        // Visual feedback: scale up briefly
+        e.currentTarget.style.transform = 'scale(1.05)';
+        setTimeout(() => {
+            if (e.currentTarget.style.position === 'fixed') {
+                e.currentTarget.style.transform = 'scale(1)';
+            }
+        }, 100);
+    }, 400); // 400ms long press (reduced for better UX)
 }
 
 function handleTouchMove(e) {
@@ -272,11 +295,20 @@ function handleTouchMove(e) {
     if (isDragging && draggedElement) {
         e.preventDefault();
         const touch = e.touches[0];
+
+        // Temporarily hide element for reliable elementFromPoint
+        const originalDisplay = draggedElement.style.display;
+        draggedElement.style.display = 'none';
+
+        // Find element under touch point
+        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+
+        // Restore element display and position it
+        draggedElement.style.display = originalDisplay;
         draggedElement.style.left = touch.clientX - draggedElement.offsetWidth / 2 + 'px';
         draggedElement.style.top = touch.clientY - draggedElement.offsetHeight / 2 + 'px';
 
         // Highlight column under touch
-        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
         document.querySelectorAll('.column-tasks').forEach(col => {
             col.classList.remove('drag-over');
         });
@@ -295,8 +327,15 @@ function handleTouchEnd(e) {
 
     if (isDragging && draggedTask && draggedElement) {
         const touch = e.changedTouches[0];
+
+        // Temporarily hide element for reliable elementFromPoint
+        draggedElement.style.display = 'none';
+
         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
         const columnTasks = elementBelow?.closest('.column-tasks');
+
+        // Restore element display immediately
+        draggedElement.style.display = draggedElement.dataset.originalDisplay || '';
 
         if (columnTasks) {
             const newColumnId = columnTasks.dataset.columnId;
@@ -310,7 +349,9 @@ function handleTouchEnd(e) {
         draggedElement.style.zIndex = '';
         draggedElement.style.left = '';
         draggedElement.style.top = '';
+        draggedElement.style.transform = '';
         draggedElement.style.pointerEvents = '';
+        delete draggedElement.dataset.originalDisplay;
     }
 
     isDragging = false;

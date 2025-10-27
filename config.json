@@ -122,7 +122,7 @@
   "initialTasks": [
     {
       "id": 1,
-      "columnId": "backlog",
+      "columnId": "in-development",
       "teamId": "analysts"
     },
     {
