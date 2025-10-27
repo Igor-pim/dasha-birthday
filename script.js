@@ -339,16 +339,10 @@ function handleTouchEnd(e) {
     if (isDragging && draggedTask && draggedElement) {
         const touch = e.changedTouches[0];
 
-        // iOS-specific: temporarily hide element to find what's below
-        if (isIOS) {
-            draggedElement.style.visibility = 'hidden';
-        }
-
+        // Hide dragged element to detect what's below (works on all platforms)
+        draggedElement.style.display = 'none';
         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-
-        if (isIOS) {
-            draggedElement.style.visibility = 'visible';
-        }
+        draggedElement.style.display = '';
 
         const columnTasks = elementBelow?.closest('.column-tasks');
 
@@ -366,9 +360,6 @@ function handleTouchEnd(e) {
         draggedElement.style.top = '';
         draggedElement.style.width = '';
         draggedElement.style.pointerEvents = '';
-        if (isIOS) {
-            draggedElement.style.visibility = '';
-        }
     }
 
     isDragging = false;
