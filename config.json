@@ -130,9 +130,9 @@
       "columnId": "in-development",
       "teamId": "developers"
     },
-    { 
+    {
       "id": 3,
-      "columnId": "in-development",
+      "columnId": "test",
       "teamId": "qa"
     }
   ]

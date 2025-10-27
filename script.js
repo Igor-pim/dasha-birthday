@@ -39,33 +39,6 @@ function initializeApp() {
 
     // Setup modal
     setupModal();
-
-    // Show mobile hint on touch devices
-    showMobileHintIfNeeded();
-}
-
-// Show hint for mobile users
-function showMobileHintIfNeeded() {
-    // Check if device supports touch
-    const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-
-    if (isTouchDevice && !localStorage.getItem('hintShown')) {
-        setTimeout(() => {
-            const hint = document.getElementById('mobile-hint');
-            hint.classList.add('show');
-
-            document.getElementById('hint-close').addEventListener('click', () => {
-                hint.classList.remove('show');
-                localStorage.setItem('hintShown', 'true');
-            });
-
-            // Auto-hide after 5 seconds
-            setTimeout(() => {
-                hint.classList.remove('show');
-                localStorage.setItem('hintShown', 'true');
-            }, 5000);
-        }, 1000);
-    }
 }
 
 // Initialize tasks from config
@@ -208,7 +181,6 @@ function createTaskElement(task) {
     taskDiv.addEventListener('touchstart', handleTouchStart);
     taskDiv.addEventListener('touchmove', handleTouchMove);
     taskDiv.addEventListener('touchend', handleTouchEnd);
-    taskDiv.addEventListener('touchcancel', handleTouchEnd);
 
     // Click to open modal
     taskDiv.querySelector('.team-badge').addEventListener('click', (e) => {
@@ -266,9 +238,6 @@ let touchStartX, touchStartY;
 let isDragging = false;
 let draggedElement = null;
 
-// Detect iOS
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
 function handleTouchStart(e) {
     const taskId = parseInt(e.currentTarget.dataset.taskId);
     const task = tasks.find(t => t.id === taskId);
@@ -285,16 +254,6 @@ function handleTouchStart(e) {
         e.currentTarget.style.position = 'fixed';
         e.currentTarget.style.zIndex = '1000';
         e.currentTarget.style.pointerEvents = 'none';
-        e.currentTarget.style.width = e.currentTarget.offsetWidth + 'px';
-
-        // Position element at touch point
-        e.currentTarget.style.left = touchStartX - e.currentTarget.offsetWidth / 2 + 'px';
-        e.currentTarget.style.top = touchStartY - e.currentTarget.offsetHeight / 2 + 'px';
-
-        // Vibration feedback
-        if (navigator.vibrate) {
-            navigator.vibrate(50);
-        }
     }, 500); // 500ms long press
 }
 
@@ -307,8 +266,6 @@ function handleTouchMove(e) {
         if (moveX > 10 || moveY > 10) {
             clearTimeout(touchTimeout);
             touchTimeout = null;
-            // Allow scrolling on iOS
-            return;
         }
     }
 
@@ -338,12 +295,7 @@ function handleTouchEnd(e) {
 
     if (isDragging && draggedTask && draggedElement) {
         const touch = e.changedTouches[0];
-
-        // Hide dragged element to detect what's below (works on all platforms)
-        draggedElement.style.display = 'none';
         const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-        draggedElement.style.display = '';
-
         const columnTasks = elementBelow?.closest('.column-tasks');
 
         if (columnTasks) {
@@ -358,7 +310,6 @@ function handleTouchEnd(e) {
         draggedElement.style.zIndex = '';
         draggedElement.style.left = '';
         draggedElement.style.top = '';
-        draggedElement.style.width = '';
         draggedElement.style.pointerEvents = '';
     }
 
