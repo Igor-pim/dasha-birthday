@@ -127,12 +127,12 @@
     },
     {
       "id": 2,
-      "columnId": "backlog",
+      "columnId": "in-development",
       "teamId": "developers"
     },
     {
       "id": 3,
-      "columnId": "backlog",
+      "columnId": "code-review",
       "teamId": "qa"
     }
   ]
