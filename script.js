@@ -177,10 +177,10 @@ function createTaskElement(task) {
     taskDiv.addEventListener('dragstart', handleDragStart);
     taskDiv.addEventListener('dragend', handleDragEnd);
 
-    // Touch events for mobile (active listeners for preventDefault to work)
-    taskDiv.addEventListener('touchstart', handleTouchStart, { passive: false });
-    taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false });
-    taskDiv.addEventListener('touchend', handleTouchEnd, { passive: false });
+    // Touch events for mobile
+    taskDiv.addEventListener('touchstart', handleTouchStart);
+    taskDiv.addEventListener('touchmove', handleTouchMove);
+    taskDiv.addEventListener('touchend', handleTouchEnd);
 
     // Click to open modal
     taskDiv.querySelector('.team-badge').addEventListener('click', (e) => {
@@ -238,6 +238,10 @@ let touchStartX, touchStartY;
 let isDragging = false;
 let draggedElement = null;
 
+// Detect iOS
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 function handleTouchStart(e) {
     const taskId = parseInt(e.currentTarget.dataset.taskId);
     const task = tasks.find(t => t.id === taskId);
@@ -245,39 +249,21 @@ function handleTouchStart(e) {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 
-    // Prevent default iOS behavior (text selection, callout menu)
-    // but only after we've saved the touch coordinates
-    if (e.cancelable) {
-        e.preventDefault();
-    }
-
     // Long press detection
     touchTimeout = setTimeout(() => {
         isDragging = true;
         draggedTask = task;
         draggedElement = e.currentTarget;
         e.currentTarget.classList.add('dragging');
-
-        // Save original display and position for reliable elementFromPoint
-        e.currentTarget.dataset.originalDisplay = e.currentTarget.style.display;
-
         e.currentTarget.style.position = 'fixed';
         e.currentTarget.style.zIndex = '1000';
         e.currentTarget.style.pointerEvents = 'none';
 
-        // Provide haptic feedback on iOS if available
+        // Provide haptic feedback if available
         if ('vibrate' in navigator) {
-            navigator.vibrate(50); // 50ms vibration
+            navigator.vibrate(50);
         }
-
-        // Visual feedback: scale up briefly
-        e.currentTarget.style.transform = 'scale(1.05)';
-        setTimeout(() => {
-            if (e.currentTarget.style.position === 'fixed') {
-                e.currentTarget.style.transform = 'scale(1)';
-            }
-        }, 100);
-    }, 400); // 400ms long press (reduced for better UX)
+    }, 500); // 500ms long press
 }
 
 function handleTouchMove(e) {
@@ -296,15 +282,16 @@ function handleTouchMove(e) {
         e.preventDefault();
         const touch = e.touches[0];
 
-        // Temporarily hide element for reliable elementFromPoint
-        const originalDisplay = draggedElement.style.display;
-        draggedElement.style.display = 'none';
+        // iOS fix: temporarily hide element for reliable elementFromPoint
+        let elementBelow;
+        if (isIOS) {
+            draggedElement.style.display = 'none';
+            elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+            draggedElement.style.display = '';
+        } else {
+            elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        }
 
-        // Find element under touch point
-        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-
-        // Restore element display and position it
-        draggedElement.style.display = originalDisplay;
         draggedElement.style.left = touch.clientX - draggedElement.offsetWidth / 2 + 'px';
         draggedElement.style.top = touch.clientY - draggedElement.offsetHeight / 2 + 'px';
 
@@ -328,14 +315,17 @@ function handleTouchEnd(e) {
     if (isDragging && draggedTask && draggedElement) {
         const touch = e.changedTouches[0];
 
-        // Temporarily hide element for reliable elementFromPoint
-        draggedElement.style.display = 'none';
+        // iOS fix: temporarily hide element for reliable elementFromPoint
+        let elementBelow;
+        if (isIOS) {
+            draggedElement.style.display = 'none';
+            elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+            draggedElement.style.display = '';
+        } else {
+            elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        }
 
-        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
         const columnTasks = elementBelow?.closest('.column-tasks');
-
-        // Restore element display immediately
-        draggedElement.style.display = draggedElement.dataset.originalDisplay || '';
 
         if (columnTasks) {
             const newColumnId = columnTasks.dataset.columnId;
@@ -349,9 +339,7 @@ function handleTouchEnd(e) {
         draggedElement.style.zIndex = '';
         draggedElement.style.left = '';
         draggedElement.style.top = '';
-        draggedElement.style.transform = '';
         draggedElement.style.pointerEvents = '';
-        delete draggedElement.dataset.originalDisplay;
     }
 
     isDragging = false;
