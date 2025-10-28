@@ -7,34 +7,39 @@
       "id": "backlog",
       "title": "Backlog благодарностей",
       "description": "накопились поздравления",
-      "assigneeMode": "random"
+      "assigneeMode": "random",
+      "effect": "random"
     },
     {
       "id": "in-development",
       "title": "In Development",
       "description": "готовим поздравления",
       "assigneeMode": "specific",
-      "assignees": ["developers"]
+      "assignees": ["developers"],
+      "effect": "random"
     },
     {
       "id": "code-review",
       "title": "Code Review",
       "description": "проверяем искренность 😄",
       "assigneeMode": "specific",
-      "assignees": ["analysts"]
+      "assignees": ["analysts"],
+      "effect": "random"
     },
     {
       "id": "test",
       "title": "QA",
       "description": "проверка поздравлений",
       "assigneeMode": "specific",
-      "assignees": ["qa"]
+      "assignees": ["qa"],
+      "effect": "random"
     },
     {
       "id": "bugs",
       "title": "Bugs",
       "description": "ошибочные в поздравлении",
-      "assigneeMode": "random"
+      "assigneeMode": "random",
+      "effect": "glitch"
     },
     {
       "id": "production",
@@ -42,7 +47,8 @@
       "description": "поздравления доставлены!",
       "assigneeMode": "specific",
       "assignees": ["developers", "analysts", "qa"],
-      "isFinal": true
+      "isFinal": true,
+      "effect": "confetti"
     }
   ],
 

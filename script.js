@@ -393,9 +393,14 @@ function moveTask(taskId, newColumnId, oldColumnId) {
     // Update description
     task.description = getGreetingForTask(newColumnId, task.teamId);
 
-    // Show confetti if moved to production
+    // Show effects based on column
     if (newColumn.isFinal) {
+        // Production - confetti + new task
         showConfetti();
+        createNewTaskInBacklog();
+    } else {
+        // Other columns - specific effects
+        showEffectForColumn(newColumnId);
     }
 
     // Re-render
@@ -481,6 +486,205 @@ function showConfetti() {
 
             setTimeout(() => confetti.remove(), 3000);
         }, i * 30);
+    }
+}
+
+// ============================================
+// EFFECTS LIBRARY
+// ============================================
+
+// Effect registry - maps effect names to functions
+const EFFECTS_LIBRARY = {
+    // Column animation effects (apply CSS class to column)
+    'shake': applyColumnEffect('shake-effect', 500),
+    'pulse': applyColumnEffect('pulse-effect', 600),
+    'glow': applyColumnEffect('glow-effect', 800),
+    'glitch': applyColumnEffectWithVibration('glitch-effect', 600),
+    'bounce': applyColumnEffect('bounce-effect', 600),
+    'rotate': applyColumnEffect('rotate-effect', 600),
+    'flash': applyColumnEffect('flash-effect', 900),
+    'rainbow': applyColumnEffect('rainbow-effect', 1000),
+    'zoom': applyColumnEffect('zoom-effect', 500),
+    'slide': applyColumnEffect('slide-effect', 600),
+    'fade': applyColumnEffect('fade-effect', 800),
+    'wave': applyColumnEffect('wave-effect', 1000),
+    'ripple': applyColumnEffect('ripple-effect', 1000),
+    'spin': applyColumnEffect('spin-effect', 800),
+    'swing': applyColumnEffect('swing-effect', 1000),
+    'jello': applyColumnEffect('jello-effect', 900),
+    'wobble': applyColumnEffect('wobble-effect', 800),
+    'tada': applyColumnEffect('tada-effect', 1000),
+    'flip': applyColumnEffect('flip-effect', 800),
+    'rubber-band': applyColumnEffect('rubber-band-effect', 1000),
+    'heartbeat': applyColumnEffect('heartbeat-effect', 1300),
+    'neon-glow': applyColumnEffect('neon-glow-effect', 1000),
+
+    // Particle effects (create animated particles)
+    'confetti': showConfetti,
+    'checkmarks': () => showParticleEffect('✓', 'checkmark', 15, 1000),
+    'sparkles': () => showParticleEffect('✨', 'sparkle', 20, 1000),
+    'hearts': () => showParticleEffect('❤️', 'heart', 12, 2000),
+    'stars': () => showParticleEffect('⭐', 'star', 15, 1500),
+    'bubbles': () => showBubblesEffect(),
+    'snow': () => showParticleEffect('❄️', 'snowflake', 20, 3000),
+    'lightning': () => showLightningEffect(),
+    'fireworks': () => showFireworksEffect()
+};
+
+// List of all available effects for random selection
+const ALL_EFFECTS = Object.keys(EFFECTS_LIBRARY);
+
+// Helper: Create a function that applies CSS class to column
+function applyColumnEffect(className, duration) {
+    return function(columnId) {
+        const column = document.querySelector(`.column-tasks[data-column-id="${columnId}"]`);
+        if (!column) return;
+
+        column.classList.add(className);
+        setTimeout(() => column.classList.remove(className), duration);
+    };
+}
+
+// Helper: Apply effect with vibration
+function applyColumnEffectWithVibration(className, duration) {
+    return function(columnId) {
+        const column = document.querySelector(`.column-tasks[data-column-id="${columnId}"]`);
+        if (!column) return;
+
+        column.classList.add(className);
+
+        // Haptic feedback if available
+        if ('vibrate' in navigator) {
+            navigator.vibrate([50, 50, 50]);
+        }
+
+        setTimeout(() => column.classList.remove(className), duration);
+    };
+}
+
+// Generic particle effect
+function showParticleEffect(symbol, className, count, duration) {
+    const container = document.getElementById('effect-container');
+
+    for (let i = 0; i < count; i++) {
+        setTimeout(() => {
+            const particle = document.createElement('div');
+            particle.className = `particle ${className}`;
+            particle.textContent = symbol;
+
+            // Random starting position
+            const startX = Math.random() * window.innerWidth;
+            const startY = Math.random() * window.innerHeight;
+
+            // Random direction
+            const tx = (Math.random() - 0.5) * 200;
+            const ty = (Math.random() - 0.5) * 200;
+
+            particle.style.left = startX + 'px';
+            particle.style.top = startY + 'px';
+            particle.style.setProperty('--tx', tx + 'px');
+            particle.style.setProperty('--ty', ty + 'px');
+
+            container.appendChild(particle);
+
+            setTimeout(() => particle.remove(), duration);
+        }, i * 50);
+    }
+}
+
+// Bubbles effect
+function showBubblesEffect() {
+    const container = document.getElementById('effect-container');
+
+    for (let i = 0; i < 15; i++) {
+        setTimeout(() => {
+            const bubble = document.createElement('div');
+            bubble.className = 'particle bubble';
+
+            const startX = Math.random() * window.innerWidth;
+            const drift = (Math.random() - 0.5) * 100;
+
+            bubble.style.left = startX + 'px';
+            bubble.style.top = window.innerHeight + 'px';
+            bubble.style.setProperty('--drift', drift + 'px');
+
+            container.appendChild(bubble);
+
+            setTimeout(() => bubble.remove(), 3000);
+        }, i * 100);
+    }
+}
+
+// Lightning effect
+function showLightningEffect() {
+    const container = document.getElementById('effect-container');
+
+    for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+            const lightning = document.createElement('div');
+            lightning.className = 'lightning';
+            lightning.style.left = Math.random() * window.innerWidth + 'px';
+            lightning.style.top = '0px';
+
+            container.appendChild(lightning);
+
+            setTimeout(() => lightning.remove(), 300);
+        }, i * 100);
+    }
+}
+
+// Fireworks effect
+function showFireworksEffect() {
+    const container = document.getElementById('effect-container');
+    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffd700'];
+
+    for (let burst = 0; burst < 3; burst++) {
+        setTimeout(() => {
+            const centerX = Math.random() * window.innerWidth;
+            const centerY = Math.random() * (window.innerHeight / 2);
+
+            for (let i = 0; i < 20; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'firework-particle';
+                particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+                particle.style.left = centerX + 'px';
+                particle.style.top = centerY + 'px';
+
+                const angle = (Math.PI * 2 * i) / 20;
+                const velocity = 50 + Math.random() * 50;
+                const tx = Math.cos(angle) * velocity;
+                const ty = Math.sin(angle) * velocity;
+
+                particle.style.setProperty('--tx', tx + 'px');
+                particle.style.setProperty('--ty', ty + 'px');
+
+                container.appendChild(particle);
+
+                setTimeout(() => particle.remove(), 1000);
+            }
+        }, burst * 300);
+    }
+}
+
+// Main function to show effect for a column
+function showEffectForColumn(columnId) {
+    const column = getColumnById(columnId);
+    if (!column || !column.effect) return;
+
+    let effectName = column.effect;
+
+    // Handle "random" effect
+    if (effectName === 'random') {
+        effectName = ALL_EFFECTS[Math.floor(Math.random() * ALL_EFFECTS.length)];
+        console.log(`Random effect selected: ${effectName}`);
+    }
+
+    // Execute the effect
+    const effectFunction = EFFECTS_LIBRARY[effectName];
+    if (effectFunction) {
+        effectFunction(columnId);
+    } else {
+        console.warn(`Effect "${effectName}" not found in library`);
     }
 }
 
