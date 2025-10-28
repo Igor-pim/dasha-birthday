@@ -132,7 +132,7 @@
     },
     {
       "id": 3,
-      "columnId": "test",
+      "columnId": "in-development",
       "teamId": "qa"
     }
   ]

@@ -216,14 +216,17 @@ function handleDragOver(e) {
 }
 
 function handleDragLeave(e) {
-    if (e.target.classList.contains('column-tasks')) {
+    if (e.target && e.target.classList && e.target.classList.contains('column-tasks')) {
         e.target.classList.remove('drag-over');
     }
 }
 
 function handleDrop(e) {
     e.preventDefault();
-    e.currentTarget.classList.remove('drag-over');
+
+    if (e.currentTarget && e.currentTarget.classList) {
+        e.currentTarget.classList.remove('drag-over');
+    }
 
     if (!draggedTask) return;
 
@@ -245,19 +248,22 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
 function handleTouchStart(e) {
     const taskId = parseInt(e.currentTarget.dataset.taskId);
     const task = tasks.find(t => t.id === taskId);
+    const element = e.currentTarget; // Save reference before setTimeout
 
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 
     // Long press detection
     touchTimeout = setTimeout(() => {
+        if (!element) return; // Safety check
+
         isDragging = true;
         draggedTask = task;
-        draggedElement = e.currentTarget;
-        e.currentTarget.classList.add('dragging');
-        e.currentTarget.style.position = 'fixed';
-        e.currentTarget.style.zIndex = '1000';
-        e.currentTarget.style.pointerEvents = 'none';
+        draggedElement = element;
+        element.classList.add('dragging');
+        element.style.position = 'fixed';
+        element.style.zIndex = '1000';
+        element.style.pointerEvents = 'none';
 
         // Provide haptic feedback if available
         if ('vibrate' in navigator) {
@@ -334,12 +340,14 @@ function handleTouchEnd(e) {
         }
 
         // Reset styles
-        draggedElement.classList.remove('dragging');
-        draggedElement.style.position = '';
-        draggedElement.style.zIndex = '';
-        draggedElement.style.left = '';
-        draggedElement.style.top = '';
-        draggedElement.style.pointerEvents = '';
+        if (draggedElement) {
+            draggedElement.classList.remove('dragging');
+            draggedElement.style.position = '';
+            draggedElement.style.zIndex = '';
+            draggedElement.style.left = '';
+            draggedElement.style.top = '';
+            draggedElement.style.pointerEvents = '';
+        }
     }
 
     isDragging = false;
