@@ -114,7 +114,7 @@ body {
     transition: var(--transition);
     border-left: 4px solid var(--primary-color);
     position: relative;
-    touch-action: none;
+    touch-action: pan-y; /* Allow vertical scrolling, prevent horizontal pan */
     -webkit-user-select: none;
     user-select: none;
     /* Prevent iOS gestures */
@@ -137,6 +137,8 @@ body {
 .task-card.dragging {
     opacity: 0.5;
     transform: rotate(2deg);
+    transition: none !important; /* Disable transitions during drag to prevent glitches */
+    pointer-events: none;
 }
 
 .task-header {

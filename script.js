@@ -11,15 +11,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeApp();
 });
 
-// Load configuration
+// Load configuration with retry and timeout
 async function loadConfig() {
-    try {
-        const response = await fetch('config.json');
-        config = await response.json();
-        console.log('Configuration loaded:', config);
-    } catch (error) {
-        console.error('Error loading configuration:', error);
-        alert('Ошибка загрузки конфигурации!');
+    const maxRetries = 3;
+    const timeout = 10000; // 10 seconds
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`Loading config, attempt ${attempt}/${maxRetries}...`);
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+            const response = await fetch('config.json', {
+                signal: controller.signal,
+                cache: 'no-cache' // Prevent aggressive caching issues
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            config = await response.json();
+            console.log('Configuration loaded successfully:', config);
+            return;
+
+        } catch (error) {
+            console.error(`Error loading configuration (attempt ${attempt}/${maxRetries}):`, error);
+
+            if (attempt === maxRetries) {
+                alert('Ошибка загрузки конфигурации!\nПопробуйте обновить страницу.');
+                throw error;
+            }
+
+            // Wait before retry (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        }
     }
 }
 
@@ -178,9 +207,10 @@ function createTaskElement(task) {
     taskDiv.addEventListener('dragend', handleDragEnd);
 
     // Touch events for mobile
-    taskDiv.addEventListener('touchstart', handleTouchStart);
-    taskDiv.addEventListener('touchmove', handleTouchMove);
-    taskDiv.addEventListener('touchend', handleTouchEnd);
+    taskDiv.addEventListener('touchstart', handleTouchStart, { passive: true });
+    taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false }); // passive: false to allow preventDefault()
+    taskDiv.addEventListener('touchend', handleTouchEnd, { passive: true });
+    taskDiv.addEventListener('touchcancel', cleanupDragState, { passive: true }); // Handle cancelled touches
 
     // Click to open modal
     taskDiv.querySelector('.team-badge').addEventListener('click', (e) => {
@@ -240,60 +270,101 @@ function handleDrop(e) {
 let touchStartX, touchStartY;
 let isDragging = false;
 let draggedElement = null;
+let initialScrollTop = 0; // Track initial scroll position
+let dragDirection = null; // Track if user is scrolling or dragging
 
 // Detect iOS
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
+// Helper function to clean up drag state
+function cleanupDragState() {
+    if (draggedElement) {
+        draggedElement.classList.remove('dragging');
+        draggedElement.style.position = '';
+        draggedElement.style.zIndex = '';
+        draggedElement.style.left = '';
+        draggedElement.style.top = '';
+        draggedElement.style.pointerEvents = '';
+        draggedElement.style.visibility = '';
+    }
+    isDragging = false;
+    draggedTask = null;
+    draggedElement = null;
+    dragDirection = null;
+    document.querySelectorAll('.column-tasks').forEach(col => {
+        col.classList.remove('drag-over');
+    });
+}
+
 function handleTouchStart(e) {
     const taskId = parseInt(e.currentTarget.dataset.taskId);
     const task = tasks.find(t => t.id === taskId);
-    const element = e.currentTarget; // Save reference before setTimeout
+    const element = e.currentTarget;
 
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
+    dragDirection = null;
+
+    // Save initial scroll position of the column
+    const column = element.closest('.column-tasks');
+    if (column) {
+        initialScrollTop = column.scrollTop;
+    }
 
     // Long press detection
     touchTimeout = setTimeout(() => {
-        if (!element) return; // Safety check
+        if (!element || !task) return;
 
-        isDragging = true;
-        draggedTask = task;
-        draggedElement = element;
-        element.classList.add('dragging');
-        element.style.position = 'fixed';
-        element.style.zIndex = '1000';
-        element.style.pointerEvents = 'none';
+        // Only start dragging if not scrolling
+        if (dragDirection !== 'vertical') {
+            isDragging = true;
+            draggedTask = task;
+            draggedElement = element;
+            element.classList.add('dragging');
+            element.style.position = 'fixed';
+            element.style.zIndex = '1000';
+            element.style.pointerEvents = 'none';
 
-        // Provide haptic feedback if available
-        if ('vibrate' in navigator) {
-            navigator.vibrate(50);
+            // Provide haptic feedback if available
+            if ('vibrate' in navigator) {
+                navigator.vibrate(50);
+            }
         }
     }, 500); // 500ms long press
 }
 
 function handleTouchMove(e) {
-    if (touchTimeout) {
-        // If moved before long press, cancel
-        const moveX = Math.abs(e.touches[0].clientX - touchStartX);
-        const moveY = Math.abs(e.touches[0].clientY - touchStartY);
+    const touch = e.touches[0];
+    const moveX = Math.abs(touch.clientX - touchStartX);
+    const moveY = Math.abs(touch.clientY - touchStartY);
 
-        if (moveX > 10 || moveY > 10) {
-            clearTimeout(touchTimeout);
-            touchTimeout = null;
+    // Determine drag direction if not yet determined and movement detected
+    if (!dragDirection && (moveX > 5 || moveY > 5)) {
+        // Vertical movement is dominant - this is scrolling
+        if (moveY > moveX * 1.5) {
+            dragDirection = 'vertical';
+            // Cancel long press - user is scrolling
+            if (touchTimeout) {
+                clearTimeout(touchTimeout);
+                touchTimeout = null;
+            }
+        } else if (moveX > 10 || moveY > 10) {
+            // Horizontal or mixed movement - potential drag
+            dragDirection = 'other';
         }
     }
 
+    // If already dragging, handle drag movement
     if (isDragging && draggedElement) {
-        e.preventDefault();
-        const touch = e.touches[0];
+        e.preventDefault(); // Only prevent default when actually dragging
 
-        // iOS fix: temporarily hide element for reliable elementFromPoint
+        // iOS fix: use visibility instead of display to avoid reflow issues
         let elementBelow;
         if (isIOS) {
-            draggedElement.style.display = 'none';
+            draggedElement.style.visibility = 'hidden';
             elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-            draggedElement.style.display = '';
+            draggedElement.style.visibility = 'visible';
         } else {
             elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
         }
@@ -312,6 +383,10 @@ function handleTouchMove(e) {
                 columnTasks.classList.add('drag-over');
             }
         }
+    } else if (touchTimeout && dragDirection === 'other' && (moveX > 10 || moveY > 10)) {
+        // Cancel long press if moved too much before drag started
+        clearTimeout(touchTimeout);
+        touchTimeout = null;
     }
 }
 
@@ -321,12 +396,12 @@ function handleTouchEnd(e) {
     if (isDragging && draggedTask && draggedElement) {
         const touch = e.changedTouches[0];
 
-        // iOS fix: temporarily hide element for reliable elementFromPoint
+        // iOS fix: use visibility instead of display to avoid reflow issues
         let elementBelow;
-        if (isIOS) {
-            draggedElement.style.display = 'none';
+        if (isIOS && draggedElement) {
+            draggedElement.style.visibility = 'hidden';
             elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-            draggedElement.style.display = '';
+            draggedElement.style.visibility = 'visible';
         } else {
             elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
         }
@@ -338,26 +413,10 @@ function handleTouchEnd(e) {
             const oldColumnId = draggedTask.columnId;
             moveTask(draggedTask.id, newColumnId, oldColumnId);
         }
-
-        // Reset styles
-        if (draggedElement) {
-            draggedElement.classList.remove('dragging');
-            draggedElement.style.position = '';
-            draggedElement.style.zIndex = '';
-            draggedElement.style.left = '';
-            draggedElement.style.top = '';
-            draggedElement.style.pointerEvents = '';
-        }
     }
 
-    isDragging = false;
-    draggedTask = null;
-    draggedElement = null;
-
-    // Remove drag-over class from all columns
-    document.querySelectorAll('.column-tasks').forEach(col => {
-        col.classList.remove('drag-over');
-    });
+    // Clean up all drag state using helper function
+    cleanupDragState();
 }
 
 // Move task logic
