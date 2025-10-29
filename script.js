@@ -237,14 +237,23 @@ function createTaskElement(task) {
     taskDiv.addEventListener('touchend', handleTouchEnd, { passive: false });
     taskDiv.addEventListener('touchcancel', (e) => {
         console.warn('⚠ touchcancel fired! isDragging:', isDragging);
-        // IMPORTANT: Don't cleanup if we're actively dragging
-        // Browser may fire touchcancel but we want to keep the drag active
-        if (!isDragging) {
-            console.log('Not dragging, cleaning up');
-            cleanupDragState();
-        } else {
-            console.log('Currently dragging - IGNORING touchcancel!');
+
+        if (isDragging && draggedTask && lastColumnOver) {
+            // If we're dragging, treat touchcancel as drop
+            console.log('✓ Treating touchcancel as drop to column:', lastColumnOver?.dataset.columnId);
+
+            const newColumnId = lastColumnOver.dataset.columnId;
+            const oldColumnId = draggedTask.columnId;
+
+            if (newColumnId && oldColumnId) {
+                console.log('✓ Moving task', draggedTask.id, 'from', oldColumnId, 'to', newColumnId);
+                moveTask(draggedTask.id, newColumnId, oldColumnId);
+            }
         }
+
+        // Always cleanup after touchcancel
+        console.log('Cleaning up after touchcancel');
+        cleanupDragState();
     }, { passive: true });
 
     // Prevent context menu and text selection on long press
@@ -394,13 +403,12 @@ function handleTouchStart(e) {
         const rect = element.getBoundingClientRect();
         element.style.width = rect.width + 'px';
 
-        // Add small offset to show element is "grabbed" and prevent detachment
-        const offsetY = 5; // Small upward shift
+        // Position at current touch point
         element.style.left = touchStartX - rect.width / 2 + 'px';
-        element.style.top = (touchStartY - rect.height / 2 - offsetY) + 'px';
+        element.style.top = touchStartY - rect.height / 2 + 'px';
 
-        // Store the offset so we can maintain it during drag
-        element.dataset.dragOffsetY = offsetY;
+        // Store offset as 0 (no automatic shift to avoid touchcancel)
+        element.dataset.dragOffsetY = '0';
 
         // IMPORTANT: Clear timeout reference after it fires
         touchTimeout = null;
