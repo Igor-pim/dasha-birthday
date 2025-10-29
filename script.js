@@ -163,6 +163,30 @@ function createColumnElement(column) {
     tasksContainer.addEventListener('drop', handleDrop);
     tasksContainer.addEventListener('dragleave', handleDragLeave);
 
+    // Setup touch scrolling for empty space in column
+    let columnTouchStartY = 0;
+    let columnInitialScroll = 0;
+
+    tasksContainer.addEventListener('touchstart', (e) => {
+        // Only handle if touch is on the container itself, not on a task
+        if (e.target === tasksContainer) {
+            columnTouchStartY = e.touches[0].clientY;
+            columnInitialScroll = tasksContainer.scrollTop;
+        }
+    }, { passive: true });
+
+    tasksContainer.addEventListener('touchmove', (e) => {
+        // Only handle if touch started on the container itself
+        if (e.target === tasksContainer && columnTouchStartY !== 0) {
+            const deltaY = e.touches[0].clientY - columnTouchStartY;
+            tasksContainer.scrollTop = columnInitialScroll - deltaY;
+        }
+    }, { passive: true });
+
+    tasksContainer.addEventListener('touchend', () => {
+        columnTouchStartY = 0;
+    }, { passive: true });
+
     return columnDiv;
 }
 
@@ -206,14 +230,23 @@ function createTaskElement(task) {
     taskDiv.addEventListener('dragstart', handleDragStart);
     taskDiv.addEventListener('dragend', handleDragEnd);
 
-    // Touch events for mobile
-    taskDiv.addEventListener('touchstart', handleTouchStart, { passive: true });
-    taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false }); // passive: false to allow preventDefault() when dragging
-    taskDiv.addEventListener('touchend', handleTouchEnd, { passive: true });
-    taskDiv.addEventListener('touchcancel', cleanupDragState, { passive: true }); // Handle cancelled touches
+    // Touch events for mobile - all non-passive to give full control
+    taskDiv.addEventListener('touchstart', handleTouchStart, { passive: false });
+    taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false });
+    taskDiv.addEventListener('touchend', handleTouchEnd, { passive: false });
+    taskDiv.addEventListener('touchcancel', cleanupDragState, { passive: true });
 
-    // Prevent context menu on long press (especially for Samsung)
-    taskDiv.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Prevent context menu and text selection on long press
+    taskDiv.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+    });
+
+    taskDiv.addEventListener('selectstart', (e) => {
+        e.preventDefault();
+        return false;
+    });
 
     // Click to open modal
     taskDiv.querySelector('.team-badge').addEventListener('click', (e) => {
@@ -320,30 +353,29 @@ function handleTouchStart(e) {
         initialScrollTop = column.scrollTop;
     }
 
-    // Long press detection - shorter delay for better UX
+    // Long press detection
     touchTimeout = setTimeout(() => {
         if (!element || !task) return;
 
-        // Only start dragging if not scrolling
-        if (dragDirection !== 'vertical') {
-            isDragging = true;
-            draggedTask = task;
-            draggedElement = element;
-            element.classList.add('touch-dragging');
-            element.style.position = 'fixed';
-            element.style.zIndex = '1000';
-            element.style.pointerEvents = 'none';
+        isDragging = true;
+        draggedTask = task;
+        draggedElement = element;
+        element.classList.add('touch-dragging');
+        element.style.position = 'fixed';
+        element.style.zIndex = '1000';
+        element.style.pointerEvents = 'none';
 
-            // Position element at touch point immediately
-            element.style.left = e.touches[0].clientX - element.offsetWidth / 2 + 'px';
-            element.style.top = e.touches[0].clientY - element.offsetHeight / 2 + 'px';
+        // Position element at touch point immediately
+        const rect = element.getBoundingClientRect();
+        element.style.width = rect.width + 'px';
+        element.style.left = touchStartX - rect.width / 2 + 'px';
+        element.style.top = touchStartY - rect.height / 2 + 'px';
 
-            // Provide haptic feedback if available
-            if ('vibrate' in navigator) {
-                navigator.vibrate(50);
-            }
+        // Provide haptic feedback if available
+        if ('vibrate' in navigator) {
+            navigator.vibrate(50);
         }
-    }, 400); // 400ms long press - slightly faster
+    }, 300); // 300ms - balanced timing
 }
 
 function handleTouchMove(e) {
@@ -351,32 +383,16 @@ function handleTouchMove(e) {
     const moveX = Math.abs(touch.clientX - touchStartX);
     const moveY = Math.abs(touch.clientY - touchStartY);
 
-    // Determine drag direction early with more lenient vertical detection
-    if (!dragDirection && (moveX > 3 || moveY > 3)) {
-        // Vertical movement is dominant - this is scrolling (more aggressive detection)
-        if (moveY > moveX * 1.2) {  // Changed from 1.5 to 1.2 for easier scroll detection
-            dragDirection = 'vertical';
-            // Cancel long press - user is scrolling
-            if (touchTimeout) {
-                clearTimeout(touchTimeout);
-                touchTimeout = null;
-            }
-            // Don't prevent default - allow scrolling
-            return;
-        } else if (moveX > 15 || moveY > 15) {
-            // Significant movement - potential drag
-            dragDirection = 'other';
-        }
-    }
-
-    // If user is scrolling, don't interfere
-    if (dragDirection === 'vertical') {
-        return; // Let the browser handle scrolling
+    // Cancel long press if moved significantly before timeout
+    if (touchTimeout && (moveX > 10 || moveY > 10)) {
+        clearTimeout(touchTimeout);
+        touchTimeout = null;
     }
 
     // If already dragging, handle drag movement
     if (isDragging && draggedElement) {
-        e.preventDefault(); // Only prevent default when actually dragging
+        e.preventDefault();
+        e.stopPropagation();
 
         // iOS fix: use visibility instead of display to avoid reflow issues
         let elementBelow;
@@ -402,10 +418,13 @@ function handleTouchMove(e) {
                 columnTasks.classList.add('drag-over');
             }
         }
-    } else if (touchTimeout && dragDirection === 'other' && (moveX > 20 || moveY > 20)) {
-        // Cancel long press if moved too much before drag started
-        clearTimeout(touchTimeout);
-        touchTimeout = null;
+    } else if (!isDragging && !touchTimeout) {
+        // If not dragging and no timeout, allow manual scrolling via touch move
+        const column = e.currentTarget.closest('.column-tasks');
+        if (column && moveY > 5) {
+            const deltaY = touch.clientY - touchStartY;
+            column.scrollTop = initialScrollTop - deltaY;
+        }
     }
 }
 
