@@ -394,15 +394,10 @@ function handleTouchMove(e) {
         e.preventDefault();
         e.stopPropagation();
 
-        // iOS fix: use visibility instead of display to avoid reflow issues
-        let elementBelow;
-        if (isIOS) {
-            draggedElement.style.visibility = 'hidden';
-            elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-            draggedElement.style.visibility = 'visible';
-        } else {
-            elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-        }
+        // Always hide element to get proper element below (not just iOS)
+        draggedElement.style.visibility = 'hidden';
+        let elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        draggedElement.style.visibility = 'visible';
 
         draggedElement.style.left = touch.clientX - draggedElement.offsetWidth / 2 + 'px';
         draggedElement.style.top = touch.clientY - draggedElement.offsetHeight / 2 + 'px';
@@ -434,23 +429,74 @@ function handleTouchEnd(e) {
     if (isDragging && draggedTask && draggedElement) {
         const touch = e.changedTouches[0];
 
-        // iOS fix: use visibility instead of display to avoid reflow issues
-        let elementBelow;
-        if (isIOS && draggedElement) {
-            draggedElement.style.visibility = 'hidden';
-            elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-            draggedElement.style.visibility = 'visible';
-        } else {
-            elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        console.log('Touch end:', {
+            x: touch.clientX,
+            y: touch.clientY,
+            taskId: draggedTask.id,
+            oldColumn: draggedTask.columnId
+        });
+
+        // Always hide element to get proper element below (works better on all devices)
+        draggedElement.style.visibility = 'hidden';
+        draggedElement.style.pointerEvents = 'none';
+
+        let elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        console.log('Element below:', elementBelow?.className, elementBelow?.tagName);
+
+        // Try to find column-tasks - go up the DOM tree
+        let columnTasks = null;
+        let currentElement = elementBelow;
+        let attempts = 0;
+
+        while (currentElement && attempts < 10) {
+            console.log(`Checking element (attempt ${attempts}):`, currentElement.className);
+
+            if (currentElement.classList?.contains('column-tasks')) {
+                columnTasks = currentElement;
+                break;
+            }
+            currentElement = currentElement.parentElement;
+            attempts++;
         }
 
-        const columnTasks = elementBelow?.closest('.column-tasks');
+        console.log('Found column:', columnTasks?.dataset.columnId);
+
+        // Fallback: if no column found via DOM traversal, try by coordinates
+        if (!columnTasks) {
+            console.log('Trying fallback method - checking all columns by coordinates');
+            const allColumns = document.querySelectorAll('.column-tasks');
+            allColumns.forEach(col => {
+                const rect = col.getBoundingClientRect();
+                console.log(`Column ${col.dataset.columnId}:`, {
+                    left: rect.left,
+                    right: rect.right,
+                    top: rect.top,
+                    bottom: rect.bottom,
+                    touchX: touch.clientX,
+                    touchY: touch.clientY
+                });
+
+                if (touch.clientX >= rect.left &&
+                    touch.clientX <= rect.right &&
+                    touch.clientY >= rect.top &&
+                    touch.clientY <= rect.bottom) {
+                    columnTasks = col;
+                    console.log('Found column by coordinates:', col.dataset.columnId);
+                }
+            });
+        }
 
         if (columnTasks) {
             const newColumnId = columnTasks.dataset.columnId;
             const oldColumnId = draggedTask.columnId;
+            console.log('Moving task from', oldColumnId, 'to', newColumnId);
             moveTask(draggedTask.id, newColumnId, oldColumnId);
+        } else {
+            console.warn('No column found under touch point! Task will stay in original column.');
         }
+
+        // Restore visibility before cleanup
+        draggedElement.style.visibility = 'visible';
     }
 
     // Clean up all drag state using helper function
