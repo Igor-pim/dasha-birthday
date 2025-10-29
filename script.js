@@ -350,6 +350,8 @@ function handleTouchStart(e) {
     touchStartY = e.touches[0].clientY;
     dragDirection = null;
 
+    console.log('Touch start on task', taskId, 'at', touchStartX, touchStartY);
+
     // Save initial scroll position of the column
     const column = element.closest('.column-tasks');
     if (column) {
@@ -359,6 +361,8 @@ function handleTouchStart(e) {
     // Long press detection
     touchTimeout = setTimeout(() => {
         if (!element || !task) return;
+
+        console.log('✓ Long press activated - starting drag');
 
         isDragging = true;
         draggedTask = task;
@@ -374,6 +378,9 @@ function handleTouchStart(e) {
         element.style.left = touchStartX - rect.width / 2 + 'px';
         element.style.top = touchStartY - rect.height / 2 + 'px';
 
+        // IMPORTANT: Clear timeout reference after it fires
+        touchTimeout = null;
+
         // Provide haptic feedback if available
         if ('vibrate' in navigator) {
             navigator.vibrate(50);
@@ -386,14 +393,17 @@ function handleTouchMove(e) {
     const moveX = Math.abs(touch.clientX - touchStartX);
     const moveY = Math.abs(touch.clientY - touchStartY);
 
-    // Cancel long press if moved significantly before timeout
+    // Cancel long press if moved significantly BEFORE timeout fires
     if (touchTimeout && (moveX > 10 || moveY > 10)) {
+        console.log('✗ Cancelling long press - user moved before timeout');
         clearTimeout(touchTimeout);
         touchTimeout = null;
+        return; // Don't process further if we cancelled
     }
 
     // If already dragging, handle drag movement
     if (isDragging && draggedElement) {
+        console.log('Dragging - moveX:', moveX, 'moveY:', moveY);
         e.preventDefault();
         e.stopPropagation();
 
