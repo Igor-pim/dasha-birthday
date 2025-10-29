@@ -319,6 +319,9 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
 
 // Helper function to clean up drag state
 function cleanupDragState() {
+    console.log('🧹 cleanupDragState called');
+    console.trace('Call stack:');
+
     if (touchTimeout) {
         clearTimeout(touchTimeout);
         touchTimeout = null;
@@ -333,6 +336,7 @@ function cleanupDragState() {
         draggedElement.style.visibility = '';
         draggedElement.style.transform = '';
         draggedElement.style.width = '';
+        delete draggedElement.dataset.dragOffsetY;
     }
     isDragging = false;
     draggedTask = null;
@@ -455,10 +459,12 @@ function handleTouchMove(e) {
 }
 
 function handleTouchEnd(e) {
+    console.log('🔚 handleTouchEnd called, isDragging:', isDragging);
+
     clearTimeout(touchTimeout);
 
     if (isDragging && draggedTask && draggedElement) {
-        console.log('Touch end - isDragging:', isDragging, 'task:', draggedTask.id);
+        console.log('✓ Touch end with active drag - task:', draggedTask.id);
         console.log('Last column over:', lastColumnOver?.dataset.columnId);
 
         // Use the last column we were hovering over (most reliable)
