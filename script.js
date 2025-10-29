@@ -208,9 +208,12 @@ function createTaskElement(task) {
 
     // Touch events for mobile
     taskDiv.addEventListener('touchstart', handleTouchStart, { passive: true });
-    taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false }); // passive: false to allow preventDefault()
+    taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false }); // passive: false to allow preventDefault() when dragging
     taskDiv.addEventListener('touchend', handleTouchEnd, { passive: true });
     taskDiv.addEventListener('touchcancel', cleanupDragState, { passive: true }); // Handle cancelled touches
+
+    // Prevent context menu on long press (especially for Samsung)
+    taskDiv.addEventListener('contextmenu', (e) => e.preventDefault());
 
     // Click to open modal
     taskDiv.querySelector('.team-badge').addEventListener('click', (e) => {
@@ -279,14 +282,19 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
 
 // Helper function to clean up drag state
 function cleanupDragState() {
+    if (touchTimeout) {
+        clearTimeout(touchTimeout);
+        touchTimeout = null;
+    }
     if (draggedElement) {
-        draggedElement.classList.remove('dragging');
+        draggedElement.classList.remove('dragging', 'touch-dragging');
         draggedElement.style.position = '';
         draggedElement.style.zIndex = '';
         draggedElement.style.left = '';
         draggedElement.style.top = '';
         draggedElement.style.pointerEvents = '';
         draggedElement.style.visibility = '';
+        draggedElement.style.transform = '';
     }
     isDragging = false;
     draggedTask = null;
@@ -312,7 +320,7 @@ function handleTouchStart(e) {
         initialScrollTop = column.scrollTop;
     }
 
-    // Long press detection
+    // Long press detection - shorter delay for better UX
     touchTimeout = setTimeout(() => {
         if (!element || !task) return;
 
@@ -321,17 +329,21 @@ function handleTouchStart(e) {
             isDragging = true;
             draggedTask = task;
             draggedElement = element;
-            element.classList.add('dragging');
+            element.classList.add('touch-dragging');
             element.style.position = 'fixed';
             element.style.zIndex = '1000';
             element.style.pointerEvents = 'none';
+
+            // Position element at touch point immediately
+            element.style.left = e.touches[0].clientX - element.offsetWidth / 2 + 'px';
+            element.style.top = e.touches[0].clientY - element.offsetHeight / 2 + 'px';
 
             // Provide haptic feedback if available
             if ('vibrate' in navigator) {
                 navigator.vibrate(50);
             }
         }
-    }, 500); // 500ms long press
+    }, 400); // 400ms long press - slightly faster
 }
 
 function handleTouchMove(e) {
@@ -339,20 +351,27 @@ function handleTouchMove(e) {
     const moveX = Math.abs(touch.clientX - touchStartX);
     const moveY = Math.abs(touch.clientY - touchStartY);
 
-    // Determine drag direction if not yet determined and movement detected
-    if (!dragDirection && (moveX > 5 || moveY > 5)) {
-        // Vertical movement is dominant - this is scrolling
-        if (moveY > moveX * 1.5) {
+    // Determine drag direction early with more lenient vertical detection
+    if (!dragDirection && (moveX > 3 || moveY > 3)) {
+        // Vertical movement is dominant - this is scrolling (more aggressive detection)
+        if (moveY > moveX * 1.2) {  // Changed from 1.5 to 1.2 for easier scroll detection
             dragDirection = 'vertical';
             // Cancel long press - user is scrolling
             if (touchTimeout) {
                 clearTimeout(touchTimeout);
                 touchTimeout = null;
             }
-        } else if (moveX > 10 || moveY > 10) {
-            // Horizontal or mixed movement - potential drag
+            // Don't prevent default - allow scrolling
+            return;
+        } else if (moveX > 15 || moveY > 15) {
+            // Significant movement - potential drag
             dragDirection = 'other';
         }
+    }
+
+    // If user is scrolling, don't interfere
+    if (dragDirection === 'vertical') {
+        return; // Let the browser handle scrolling
     }
 
     // If already dragging, handle drag movement
@@ -383,7 +402,7 @@ function handleTouchMove(e) {
                 columnTasks.classList.add('drag-over');
             }
         }
-    } else if (touchTimeout && dragDirection === 'other' && (moveX > 10 || moveY > 10)) {
+    } else if (touchTimeout && dragDirection === 'other' && (moveX > 20 || moveY > 20)) {
         // Cancel long press if moved too much before drag started
         clearTimeout(touchTimeout);
         touchTimeout = null;
