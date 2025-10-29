@@ -330,6 +330,8 @@ let initialScrollTop = 0; // Track initial scroll position
 let dragDirection = null; // Track if user is scrolling or dragging
 let lastColumnOver = null; // Track last column the dragged element was over
 let currentTouchEvent = null; // Store current touch event to prevent cancel
+let touchStartTime = 0; // Track when touch started
+let hasMoved = false; // Track if user moved finger
 
 // Detect iOS
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -338,7 +340,6 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
 // Helper function to clean up drag state
 function cleanupDragState() {
     console.log('🧹 cleanupDragState called');
-    console.trace('Call stack:');
 
     if (touchTimeout) {
         clearTimeout(touchTimeout);
@@ -362,9 +363,12 @@ function cleanupDragState() {
     dragDirection = null;
     lastColumnOver = null;
     currentTouchEvent = null;
+    touchStartTime = 0;
+    hasMoved = false;
     document.querySelectorAll('.column-tasks').forEach(col => {
         col.classList.remove('drag-over');
     });
+    console.log('✓ Cleanup done');
 }
 
 function handleTouchStart(e) {
@@ -374,6 +378,8 @@ function handleTouchStart(e) {
 
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
+    touchStartTime = Date.now();
+    hasMoved = false;
     dragDirection = null;
     currentTouchEvent = e; // Save event reference
 
@@ -385,42 +391,26 @@ function handleTouchStart(e) {
         initialScrollTop = column.scrollTop;
     }
 
-    // Long press detection
+    // Shorter timeout for better responsiveness on Android
     touchTimeout = setTimeout(() => {
         if (!element || !task) return;
 
-        console.log('✓ Long press activated - starting drag');
+        console.log('✓ Long press window opened - ready to drag on move');
 
-        isDragging = true;
+        // Don't activate drag yet, just mark as ready
+        // Drag will activate on first micro-move in handleTouchMove
         draggedTask = task;
         draggedElement = element;
-        element.classList.add('touch-dragging');
-        element.style.position = 'fixed';
-        element.style.zIndex = '1000';
-        element.style.pointerEvents = 'none';
-
-        // Position element at touch point immediately
-        const rect = element.getBoundingClientRect();
-        element.style.width = rect.width + 'px';
-
-        // Position at current touch point
-        element.style.left = touchStartX - rect.width / 2 + 'px';
-        element.style.top = touchStartY - rect.height / 2 + 'px';
-
-        // Store offset as 0 (no automatic shift to avoid touchcancel)
-        element.dataset.dragOffsetY = '0';
-
-        // IMPORTANT: Clear timeout reference after it fires
-        touchTimeout = null;
 
         // Provide haptic feedback if available
         if ('vibrate' in navigator) {
             navigator.vibrate(50);
         }
 
-        console.log('✓ Drag initialized, element positioned');
+        // IMPORTANT: Clear timeout reference after it fires
+        touchTimeout = null;
 
-    }, 300); // 300ms - balanced timing
+    }, 150); // Shorter timeout - 150ms instead of 300ms
 }
 
 function handleTouchMove(e) {
@@ -432,13 +422,52 @@ function handleTouchMove(e) {
     const touch = e.touches[0];
     const moveX = Math.abs(touch.clientX - touchStartX);
     const moveY = Math.abs(touch.clientY - touchStartY);
+    const totalMove = Math.sqrt(moveX * moveX + moveY * moveY);
 
-    // Cancel long press if moved significantly BEFORE timeout fires (only if not dragging yet)
-    if (touchTimeout && !isDragging && (moveX > 10 || moveY > 10)) {
-        console.log('✗ Cancelling long press - user moved before timeout');
+    // Mark that user has moved
+    if (totalMove > 2) {
+        hasMoved = true;
+    }
+
+    // NEW LOGIC: If timeout expired and we have task ready (draggedTask set but not isDragging yet)
+    // AND user moved finger - activate drag immediately with preventDefault to prevent touchcancel
+    if (!isDragging && draggedTask && draggedElement && hasMoved && !touchTimeout) {
+        console.log('✓ Activating drag on first move after long press');
+
+        // CRITICAL: Call preventDefault IMMEDIATELY to prevent touchcancel
+        e.preventDefault();
+        e.stopPropagation();
+
+        isDragging = true;
+
+        draggedElement.classList.add('touch-dragging');
+        draggedElement.style.position = 'fixed';
+        draggedElement.style.zIndex = '1000';
+        draggedElement.style.pointerEvents = 'none';
+
+        // Position element at touch point immediately
+        const rect = draggedElement.getBoundingClientRect();
+        draggedElement.style.width = rect.width + 'px';
+
+        // Position at current touch point
+        draggedElement.style.left = touch.clientX - rect.width / 2 + 'px';
+        draggedElement.style.top = touch.clientY - rect.height / 2 + 'px';
+
+        // Store offset as 0
+        draggedElement.dataset.dragOffsetY = '0';
+
+        console.log('✓ Drag initialized, element positioned');
+        return;
+    }
+
+    // Cancel long press if moved too much BEFORE timeout fires
+    if (touchTimeout && !isDragging && totalMove > 15) {
+        console.log('✗ Cancelling long press - user moved too far before timeout');
         clearTimeout(touchTimeout);
         touchTimeout = null;
-        return; // Don't process further if we cancelled
+        draggedTask = null;
+        draggedElement = null;
+        return;
     }
 
     // If already dragging, handle drag movement
@@ -446,7 +475,6 @@ function handleTouchMove(e) {
         // CRITICAL: Always preventDefault when dragging to prevent touchcancel
         e.preventDefault();
         e.stopPropagation();
-        console.log('Dragging - prevented default');
 
         const offsetY = parseInt(draggedElement.dataset.dragOffsetY || '0');
 
@@ -469,14 +497,13 @@ function handleTouchMove(e) {
             if (columnTasks) {
                 columnTasks.classList.add('drag-over');
                 lastColumnOver = columnTasks; // Save last column
-                console.log('Over column:', columnTasks.dataset.columnId);
             }
         }
         return; // Important: don't fall through to scroll logic
     }
 
     // If not dragging and no timeout, allow manual scrolling via touch move
-    if (!isDragging && !touchTimeout) {
+    if (!isDragging && !touchTimeout && !draggedTask) {
         const column = e.currentTarget.closest('.column-tasks');
         if (column && moveY > 5) {
             const deltaY = touch.clientY - touchStartY;
@@ -520,7 +547,6 @@ function handleTouchEnd(e) {
 
     // Clean up all drag state using helper function
     cleanupDragState();
-    console.log('✓ Cleanup done');
 }
 
 // Move task logic
