@@ -308,6 +308,7 @@ let isDragging = false;
 let draggedElement = null;
 let initialScrollTop = 0; // Track initial scroll position
 let dragDirection = null; // Track if user is scrolling or dragging
+let lastColumnOver = null; // Track last column the dragged element was over
 
 // Detect iOS
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -328,11 +329,13 @@ function cleanupDragState() {
         draggedElement.style.pointerEvents = '';
         draggedElement.style.visibility = '';
         draggedElement.style.transform = '';
+        draggedElement.style.width = '';
     }
     isDragging = false;
     draggedTask = null;
     draggedElement = null;
     dragDirection = null;
+    lastColumnOver = null;
     document.querySelectorAll('.column-tasks').forEach(col => {
         col.classList.remove('drag-over');
     });
@@ -411,6 +414,8 @@ function handleTouchMove(e) {
             const columnTasks = elementBelow.closest('.column-tasks');
             if (columnTasks) {
                 columnTasks.classList.add('drag-over');
+                lastColumnOver = columnTasks; // Save last column
+                console.log('Over column:', columnTasks.dataset.columnId);
             }
         }
     } else if (!isDragging && !touchTimeout) {
@@ -427,80 +432,36 @@ function handleTouchEnd(e) {
     clearTimeout(touchTimeout);
 
     if (isDragging && draggedTask && draggedElement) {
-        const touch = e.changedTouches[0];
+        console.log('Touch end - isDragging:', isDragging, 'task:', draggedTask.id);
+        console.log('Last column over:', lastColumnOver?.dataset.columnId);
 
-        console.log('Touch end:', {
-            x: touch.clientX,
-            y: touch.clientY,
-            taskId: draggedTask.id,
-            oldColumn: draggedTask.columnId
-        });
+        // Use the last column we were hovering over (most reliable)
+        let columnTasks = lastColumnOver;
 
-        // Always hide element to get proper element below (works better on all devices)
-        draggedElement.style.visibility = 'hidden';
-        draggedElement.style.pointerEvents = 'none';
-
-        let elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-        console.log('Element below:', elementBelow?.className, elementBelow?.tagName);
-
-        // Try to find column-tasks - go up the DOM tree
-        let columnTasks = null;
-        let currentElement = elementBelow;
-        let attempts = 0;
-
-        while (currentElement && attempts < 10) {
-            console.log(`Checking element (attempt ${attempts}):`, currentElement.className);
-
-            if (currentElement.classList?.contains('column-tasks')) {
-                columnTasks = currentElement;
-                break;
-            }
-            currentElement = currentElement.parentElement;
-            attempts++;
-        }
-
-        console.log('Found column:', columnTasks?.dataset.columnId);
-
-        // Fallback: if no column found via DOM traversal, try by coordinates
-        if (!columnTasks) {
-            console.log('Trying fallback method - checking all columns by coordinates');
-            const allColumns = document.querySelectorAll('.column-tasks');
-            allColumns.forEach(col => {
-                const rect = col.getBoundingClientRect();
-                console.log(`Column ${col.dataset.columnId}:`, {
-                    left: rect.left,
-                    right: rect.right,
-                    top: rect.top,
-                    bottom: rect.bottom,
-                    touchX: touch.clientX,
-                    touchY: touch.clientY
-                });
-
-                if (touch.clientX >= rect.left &&
-                    touch.clientX <= rect.right &&
-                    touch.clientY >= rect.top &&
-                    touch.clientY <= rect.bottom) {
-                    columnTasks = col;
-                    console.log('Found column by coordinates:', col.dataset.columnId);
-                }
-            });
-        }
-
-        if (columnTasks) {
+        // If we have a valid column, move the task
+        if (columnTasks && columnTasks.dataset.columnId) {
             const newColumnId = columnTasks.dataset.columnId;
             const oldColumnId = draggedTask.columnId;
-            console.log('Moving task from', oldColumnId, 'to', newColumnId);
-            moveTask(draggedTask.id, newColumnId, oldColumnId);
-        } else {
-            console.warn('No column found under touch point! Task will stay in original column.');
-        }
 
-        // Restore visibility before cleanup
-        draggedElement.style.visibility = 'visible';
+            console.log('✓ Moving task', draggedTask.id, 'from', oldColumnId, 'to', newColumnId);
+
+            // Move task BEFORE cleanup
+            moveTask(draggedTask.id, newColumnId, oldColumnId);
+            console.log('✓ moveTask called');
+        } else {
+            console.warn('✗ No column found! Task stays in:', draggedTask.columnId);
+        }
+    } else {
+        console.log('Touch end - NOT dragging or missing data:', {
+            isDragging,
+            draggedTask: !!draggedTask,
+            draggedElement: !!draggedElement
+        });
     }
 
     // Clean up all drag state using helper function
     cleanupDragState();
+    console.log('✓ Cleanup done');
 }
 
 // Move task logic
