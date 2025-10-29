@@ -234,7 +234,10 @@ function createTaskElement(task) {
     taskDiv.addEventListener('touchstart', handleTouchStart, { passive: false });
     taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false });
     taskDiv.addEventListener('touchend', handleTouchEnd, { passive: false });
-    taskDiv.addEventListener('touchcancel', cleanupDragState, { passive: true });
+    taskDiv.addEventListener('touchcancel', (e) => {
+        console.warn('⚠ touchcancel fired!');
+        cleanupDragState();
+    }, { passive: true });
 
     // Prevent context menu and text selection on long press
     taskDiv.addEventListener('contextmenu', (e) => {
@@ -375,8 +378,14 @@ function handleTouchStart(e) {
         // Position element at touch point immediately
         const rect = element.getBoundingClientRect();
         element.style.width = rect.width + 'px';
+
+        // Add small offset to show element is "grabbed" and prevent detachment
+        const offsetY = 5; // Small upward shift
         element.style.left = touchStartX - rect.width / 2 + 'px';
-        element.style.top = touchStartY - rect.height / 2 + 'px';
+        element.style.top = (touchStartY - rect.height / 2 - offsetY) + 'px';
+
+        // Store the offset so we can maintain it during drag
+        element.dataset.dragOffsetY = offsetY;
 
         // IMPORTANT: Clear timeout reference after it fires
         touchTimeout = null;
@@ -385,6 +394,8 @@ function handleTouchStart(e) {
         if ('vibrate' in navigator) {
             navigator.vibrate(50);
         }
+
+        console.log('✓ Drag initialized, element positioned');
     }, 300); // 300ms - balanced timing
 }
 
@@ -393,8 +404,8 @@ function handleTouchMove(e) {
     const moveX = Math.abs(touch.clientX - touchStartX);
     const moveY = Math.abs(touch.clientY - touchStartY);
 
-    // Cancel long press if moved significantly BEFORE timeout fires
-    if (touchTimeout && (moveX > 10 || moveY > 10)) {
+    // Cancel long press if moved significantly BEFORE timeout fires (only if not dragging yet)
+    if (touchTimeout && !isDragging && (moveX > 10 || moveY > 10)) {
         console.log('✗ Cancelling long press - user moved before timeout');
         clearTimeout(touchTimeout);
         touchTimeout = null;
@@ -403,17 +414,19 @@ function handleTouchMove(e) {
 
     // If already dragging, handle drag movement
     if (isDragging && draggedElement) {
-        console.log('Dragging - moveX:', moveX, 'moveY:', moveY);
         e.preventDefault();
         e.stopPropagation();
+
+        const offsetY = parseInt(draggedElement.dataset.dragOffsetY || '0');
 
         // Always hide element to get proper element below (not just iOS)
         draggedElement.style.visibility = 'hidden';
         let elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
         draggedElement.style.visibility = 'visible';
 
+        // Apply position with maintained offset
         draggedElement.style.left = touch.clientX - draggedElement.offsetWidth / 2 + 'px';
-        draggedElement.style.top = touch.clientY - draggedElement.offsetHeight / 2 + 'px';
+        draggedElement.style.top = (touch.clientY - draggedElement.offsetHeight / 2 - offsetY) + 'px';
 
         // Highlight column under touch
         document.querySelectorAll('.column-tasks').forEach(col => {
@@ -428,8 +441,11 @@ function handleTouchMove(e) {
                 console.log('Over column:', columnTasks.dataset.columnId);
             }
         }
-    } else if (!isDragging && !touchTimeout) {
-        // If not dragging and no timeout, allow manual scrolling via touch move
+        return; // Important: don't fall through to scroll logic
+    }
+
+    // If not dragging and no timeout, allow manual scrolling via touch move
+    if (!isDragging && !touchTimeout) {
         const column = e.currentTarget.closest('.column-tasks');
         if (column && moveY > 5) {
             const deltaY = touch.clientY - touchStartY;
