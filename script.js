@@ -232,6 +232,7 @@ function createTaskElement(task) {
 
     // Touch events for mobile - all non-passive to give full control
     taskDiv.addEventListener('touchstart', handleTouchStart, { passive: false });
+
     taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false });
     taskDiv.addEventListener('touchend', handleTouchEnd, { passive: false });
     taskDiv.addEventListener('touchcancel', (e) => {
@@ -312,6 +313,7 @@ let draggedElement = null;
 let initialScrollTop = 0; // Track initial scroll position
 let dragDirection = null; // Track if user is scrolling or dragging
 let lastColumnOver = null; // Track last column the dragged element was over
+let currentTouchEvent = null; // Store current touch event to prevent cancel
 
 // Detect iOS
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -343,6 +345,7 @@ function cleanupDragState() {
     draggedElement = null;
     dragDirection = null;
     lastColumnOver = null;
+    currentTouchEvent = null;
     document.querySelectorAll('.column-tasks').forEach(col => {
         col.classList.remove('drag-over');
     });
@@ -356,6 +359,7 @@ function handleTouchStart(e) {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
     dragDirection = null;
+    currentTouchEvent = e; // Save event reference
 
     console.log('Touch start on task', taskId, 'at', touchStartX, touchStartY);
 
@@ -370,6 +374,13 @@ function handleTouchStart(e) {
         if (!element || !task) return;
 
         console.log('✓ Long press activated - starting drag');
+
+        // CRITICAL: Prevent default BEFORE setting drag state
+        // This prevents browser from canceling touch
+        if (currentTouchEvent && currentTouchEvent.cancelable) {
+            console.log('Preventing default on touch event to avoid cancel');
+            currentTouchEvent.preventDefault();
+        }
 
         isDragging = true;
         draggedTask = task;
@@ -400,6 +411,7 @@ function handleTouchStart(e) {
         }
 
         console.log('✓ Drag initialized, element positioned');
+
     }, 300); // 300ms - balanced timing
 }
 
