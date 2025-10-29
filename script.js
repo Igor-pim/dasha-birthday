@@ -236,8 +236,15 @@ function createTaskElement(task) {
     taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false });
     taskDiv.addEventListener('touchend', handleTouchEnd, { passive: false });
     taskDiv.addEventListener('touchcancel', (e) => {
-        console.warn('⚠ touchcancel fired!');
-        cleanupDragState();
+        console.warn('⚠ touchcancel fired! isDragging:', isDragging);
+        // IMPORTANT: Don't cleanup if we're actively dragging
+        // Browser may fire touchcancel but we want to keep the drag active
+        if (!isDragging) {
+            console.log('Not dragging, cleaning up');
+            cleanupDragState();
+        } else {
+            console.log('Currently dragging - IGNORING touchcancel!');
+        }
     }, { passive: true });
 
     // Prevent context menu and text selection on long press
@@ -375,13 +382,6 @@ function handleTouchStart(e) {
 
         console.log('✓ Long press activated - starting drag');
 
-        // CRITICAL: Prevent default BEFORE setting drag state
-        // This prevents browser from canceling touch
-        if (currentTouchEvent && currentTouchEvent.cancelable) {
-            console.log('Preventing default on touch event to avoid cancel');
-            currentTouchEvent.preventDefault();
-        }
-
         isDragging = true;
         draggedTask = task;
         draggedElement = element;
@@ -416,6 +416,11 @@ function handleTouchStart(e) {
 }
 
 function handleTouchMove(e) {
+    // CRITICAL: Always save current touch event for later preventDefault
+    if (e.touches && e.touches.length > 0) {
+        currentTouchEvent = e;
+    }
+
     const touch = e.touches[0];
     const moveX = Math.abs(touch.clientX - touchStartX);
     const moveY = Math.abs(touch.clientY - touchStartY);
@@ -430,8 +435,10 @@ function handleTouchMove(e) {
 
     // If already dragging, handle drag movement
     if (isDragging && draggedElement) {
+        // CRITICAL: Always preventDefault when dragging to prevent touchcancel
         e.preventDefault();
         e.stopPropagation();
+        console.log('Dragging - prevented default');
 
         const offsetY = parseInt(draggedElement.dataset.dragOffsetY || '0');
 
