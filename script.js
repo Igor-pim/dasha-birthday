@@ -4,6 +4,8 @@ let tasks = [];
 let draggedTask = null;
 let touchTimeout = null;
 let nextTaskId = 1;
+let photoIntervals = {}; // Store photo rotation intervals by task ID
+let modalPhotoInterval = null; // Store modal photo rotation interval
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
@@ -18,8 +20,6 @@ async function loadConfig() {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            console.log(`Loading config, attempt ${attempt}/${maxRetries}...`);
-
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -35,12 +35,15 @@ async function loadConfig() {
             }
 
             config = await response.json();
-            console.log('Configuration loaded successfully:', config);
+
+            // Show console message for birthday girl
+            if (config.consoleMessage) {
+                console.log(config.consoleMessage);
+            }
+
             return;
 
         } catch (error) {
-            console.error(`Error loading configuration (attempt ${attempt}/${maxRetries}):`, error);
-
             if (attempt === maxRetries) {
                 alert('Ошибка загрузки конфигурации!\nПопробуйте обновить страницу.');
                 throw error;
@@ -76,10 +79,20 @@ function initializeTasks() {
         const team = getTeamById(taskConfig.teamId);
         const column = getColumnById(taskConfig.columnId);
 
+        // Use projectIndex from config, or select random if not specified
+        let projectIndex;
+        if (taskConfig.projectIndex !== undefined) {
+            projectIndex = taskConfig.projectIndex;
+        } else {
+            const randomProject = getRandomProject(team);
+            projectIndex = randomProject ? team.projects.indexOf(randomProject) : 0;
+        }
+
         tasks.push({
             id: taskConfig.id,
             columnId: taskConfig.columnId,
             teamId: taskConfig.teamId,
+            projectIndex: projectIndex,
             description: getGreetingForTask(taskConfig.columnId, taskConfig.teamId)
         });
 
@@ -102,6 +115,18 @@ function getColumnById(columnId) {
 // Get random team
 function getRandomTeam() {
     return config.teams[Math.floor(Math.random() * config.teams.length)];
+}
+
+// Get random project from team
+function getRandomProject(team) {
+    if (!team.projects || team.projects.length === 0) return null;
+    return team.projects[Math.floor(Math.random() * team.projects.length)];
+}
+
+// Get project by index from team
+function getProjectByIndex(team, projectIndex) {
+    if (!team.projects || projectIndex >= team.projects.length) return null;
+    return team.projects[projectIndex];
 }
 
 // Get greeting for task
@@ -190,8 +215,40 @@ function createColumnElement(column) {
     return columnDiv;
 }
 
+// Start photo rotation for a task
+function startPhotoRotation(taskId, photos) {
+    // Stop existing interval if any
+    stopPhotoRotation(taskId);
+
+    let currentPhotoIndex = 0;
+
+    // Create interval to rotate photos every second
+    photoIntervals[taskId] = setInterval(() => {
+        currentPhotoIndex = (currentPhotoIndex + 1) % photos.length;
+
+        // Find the image element for this task
+        const img = document.querySelector(`.team-photo[data-task-id="${taskId}"]`);
+        if (img) {
+            img.src = photos[currentPhotoIndex];
+        }
+    }, 1000); // Change every 1 second
+}
+
+// Stop photo rotation for a task
+function stopPhotoRotation(taskId) {
+    if (photoIntervals[taskId]) {
+        clearInterval(photoIntervals[taskId]);
+        delete photoIntervals[taskId];
+    }
+}
+
 // Render all tasks
 function renderTasks() {
+    // Stop all existing photo rotations
+    Object.keys(photoIntervals).forEach(taskId => {
+        stopPhotoRotation(taskId);
+    });
+
     // Clear all columns
     document.querySelectorAll('.column-tasks').forEach(container => {
         container.innerHTML = '';
@@ -210,21 +267,38 @@ function renderTasks() {
 // Create task element
 function createTaskElement(task) {
     const team = getTeamById(task.teamId);
+    const project = getProjectByIndex(team, task.projectIndex || 0);
     const taskDiv = document.createElement('div');
     taskDiv.className = 'task-card';
     taskDiv.draggable = true;
     taskDiv.dataset.taskId = task.id;
 
+    // Get photos from project
+    const photos = project && project.photos ? project.photos : [];
+    const projectName = project ? project.name : team.name;
+
     taskDiv.innerHTML = `
         <div class="task-header">
             <span class="task-id">TASK-${task.id}</span>
             <div class="team-badge" style="background: ${team.color}20;">
-                <img src="${team.photo}" alt="${team.name}" class="team-photo" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect width=%2224%22 height=%2224%22 fill=%22%23ccc%22/%3E%3C/svg%3E'">
-                <span class="team-name">${team.name}</span>
+                <img src="${photos[0] || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect width=%2224%22 height=%2224%22 fill=%22%23ccc%22/%3E%3C/svg%3E'}"
+                     alt="${team.name}"
+                     class="team-photo"
+                     data-task-id="${task.id}"
+                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect width=%2224%22 height=%2224%22 fill=%22%23ccc%22/%3E%3C/svg%3E'">
+                <div class="team-info">
+                    <span class="team-name">${team.name}</span>
+                    <span class="project-name">${projectName}</span>
+                </div>
             </div>
         </div>
         <div class="task-description">${task.description}</div>
     `;
+
+    // Start photo rotation if there are multiple photos
+    if (photos.length > 1) {
+        startPhotoRotation(task.id, photos);
+    }
 
     // Drag events for desktop
     taskDiv.addEventListener('dragstart', handleDragStart);
@@ -236,23 +310,17 @@ function createTaskElement(task) {
     taskDiv.addEventListener('touchmove', handleTouchMove, { passive: false });
     taskDiv.addEventListener('touchend', handleTouchEnd, { passive: false });
     taskDiv.addEventListener('touchcancel', (e) => {
-        console.warn('⚠ touchcancel fired! isDragging:', isDragging);
-
         if (isDragging && draggedTask && lastColumnOver) {
             // If we're dragging, treat touchcancel as drop
-            console.log('✓ Treating touchcancel as drop to column:', lastColumnOver?.dataset.columnId);
-
             const newColumnId = lastColumnOver.dataset.columnId;
             const oldColumnId = draggedTask.columnId;
 
             if (newColumnId && oldColumnId) {
-                console.log('✓ Moving task', draggedTask.id, 'from', oldColumnId, 'to', newColumnId);
                 moveTask(draggedTask.id, newColumnId, oldColumnId);
             }
         }
 
         // Always cleanup after touchcancel
-        console.log('Cleaning up after touchcancel');
         cleanupDragState();
     }, { passive: true });
 
@@ -339,8 +407,6 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
 
 // Helper function to clean up drag state
 function cleanupDragState() {
-    console.log('🧹 cleanupDragState called');
-
     if (touchTimeout) {
         clearTimeout(touchTimeout);
         touchTimeout = null;
@@ -368,7 +434,6 @@ function cleanupDragState() {
     document.querySelectorAll('.column-tasks').forEach(col => {
         col.classList.remove('drag-over');
     });
-    console.log('✓ Cleanup done');
 }
 
 function handleTouchStart(e) {
@@ -383,8 +448,6 @@ function handleTouchStart(e) {
     dragDirection = null;
     currentTouchEvent = e; // Save event reference
 
-    console.log('Touch start on task', taskId, 'at', touchStartX, touchStartY);
-
     // Save initial scroll position of the column
     const column = element.closest('.column-tasks');
     if (column) {
@@ -394,8 +457,6 @@ function handleTouchStart(e) {
     // Shorter timeout for better responsiveness on Android
     touchTimeout = setTimeout(() => {
         if (!element || !task) return;
-
-        console.log('✓ Long press window opened - ready to drag on move');
 
         // Don't activate drag yet, just mark as ready
         // Drag will activate on first micro-move in handleTouchMove
@@ -432,8 +493,6 @@ function handleTouchMove(e) {
     // NEW LOGIC: If timeout expired and we have task ready (draggedTask set but not isDragging yet)
     // AND user moved finger - activate drag immediately with preventDefault to prevent touchcancel
     if (!isDragging && draggedTask && draggedElement && hasMoved && !touchTimeout) {
-        console.log('✓ Activating drag on first move after long press');
-
         // CRITICAL: Call preventDefault IMMEDIATELY to prevent touchcancel
         e.preventDefault();
         e.stopPropagation();
@@ -456,13 +515,11 @@ function handleTouchMove(e) {
         // Store offset as 0
         draggedElement.dataset.dragOffsetY = '0';
 
-        console.log('✓ Drag initialized, element positioned');
         return;
     }
 
     // Cancel long press if moved too much BEFORE timeout fires
     if (touchTimeout && !isDragging && totalMove > 15) {
-        console.log('✗ Cancelling long press - user moved too far before timeout');
         clearTimeout(touchTimeout);
         touchTimeout = null;
         draggedTask = null;
@@ -513,14 +570,9 @@ function handleTouchMove(e) {
 }
 
 function handleTouchEnd(e) {
-    console.log('🔚 handleTouchEnd called, isDragging:', isDragging);
-
     clearTimeout(touchTimeout);
 
     if (isDragging && draggedTask && draggedElement) {
-        console.log('✓ Touch end with active drag - task:', draggedTask.id);
-        console.log('Last column over:', lastColumnOver?.dataset.columnId);
-
         // Use the last column we were hovering over (most reliable)
         let columnTasks = lastColumnOver;
 
@@ -529,20 +581,9 @@ function handleTouchEnd(e) {
             const newColumnId = columnTasks.dataset.columnId;
             const oldColumnId = draggedTask.columnId;
 
-            console.log('✓ Moving task', draggedTask.id, 'from', oldColumnId, 'to', newColumnId);
-
             // Move task BEFORE cleanup
             moveTask(draggedTask.id, newColumnId, oldColumnId);
-            console.log('✓ moveTask called');
-        } else {
-            console.warn('✗ No column found! Task stays in:', draggedTask.columnId);
         }
-    } else {
-        console.log('Touch end - NOT dragging or missing data:', {
-            isDragging,
-            draggedTask: !!draggedTask,
-            draggedElement: !!draggedElement
-        });
     }
 
     // Clean up all drag state using helper function
@@ -570,14 +611,22 @@ function moveTask(taskId, newColumnId, oldColumnId) {
 
     // Update assignee based on column rules
     const assignees = newColumn.assignees || [];
+    let selectedTeam;
     if (newColumn.assigneeMode === 'random' || assignees.length === 0) {
-        task.teamId = getRandomTeam().id;
+        selectedTeam = getRandomTeam();
+        task.teamId = selectedTeam.id;
     } else if (assignees.length === 1) {
         task.teamId = assignees[0];
+        selectedTeam = getTeamById(task.teamId);
     } else {
         // Random from specified assignees
         task.teamId = assignees[Math.floor(Math.random() * assignees.length)];
+        selectedTeam = getTeamById(task.teamId);
     }
+
+    // Select random project for the new team
+    const randomProject = getRandomProject(selectedTeam);
+    task.projectIndex = randomProject ? selectedTeam.projects.indexOf(randomProject) : 0;
 
     // Update description
     task.description = getGreetingForTask(newColumnId, task.teamId);
@@ -602,11 +651,14 @@ function createNewTaskInBacklog() {
     if (!backlogColumn) return;
 
     const randomTeam = getRandomTeam();
+    const randomProject = getRandomProject(randomTeam);
+    const projectIndex = randomProject ? randomTeam.projects.indexOf(randomProject) : 0;
 
     const newTask = {
         id: nextTaskId++,
         columnId: 'backlog',
         teamId: randomTeam.id,
+        projectIndex: projectIndex,
         description: getGreetingForTask('backlog', randomTeam.id)
     };
 
@@ -618,19 +670,55 @@ function createNewTaskInBacklog() {
 function showTaskModal(task) {
     const team = getTeamById(task.teamId);
     const column = getColumnById(task.columnId);
+    const project = getProjectByIndex(team, task.projectIndex || 0);
+    const photos = project && project.photos ? project.photos : [];
+    const projectName = project ? project.name : team.name;
 
     const modal = document.getElementById('task-modal');
-    document.getElementById('modal-team-photo').src = team.photo;
-    document.getElementById('modal-team-name').textContent = team.name;
+    const modalPhoto = document.getElementById('modal-team-photo');
+
+    modalPhoto.src = photos[0] || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect width=%2224%22 height=%2224%22 fill=%22%23ccc%22/%3E%3C/svg%3E';
+    document.getElementById('modal-team-name').textContent = `${team.name} - ${projectName}`;
     document.getElementById('modal-description').textContent = task.description;
     document.getElementById('modal-status').textContent = column.title;
     document.getElementById('modal-status').style.background = team.color;
 
     modal.classList.add('show');
 
+    // Start photo rotation in modal if there are multiple photos
+    if (photos.length > 1) {
+        startModalPhotoRotation(photos);
+    }
+
     // Show confetti if production
     if (column.isFinal) {
         showConfetti();
+    }
+}
+
+// Start photo rotation for modal
+function startModalPhotoRotation(photos) {
+    // Stop existing interval if any
+    stopModalPhotoRotation();
+
+    let currentPhotoIndex = 0;
+
+    // Create interval to rotate photos every second
+    modalPhotoInterval = setInterval(() => {
+        currentPhotoIndex = (currentPhotoIndex + 1) % photos.length;
+
+        const modalPhoto = document.getElementById('modal-team-photo');
+        if (modalPhoto) {
+            modalPhoto.src = photos[currentPhotoIndex];
+        }
+    }, 1000); // Change every 1 second
+}
+
+// Stop modal photo rotation
+function stopModalPhotoRotation() {
+    if (modalPhotoInterval) {
+        clearInterval(modalPhotoInterval);
+        modalPhotoInterval = null;
     }
 }
 
@@ -641,11 +729,13 @@ function setupModal() {
 
     closeBtn.addEventListener('click', () => {
         modal.classList.remove('show');
+        stopModalPhotoRotation();
     });
 
     modal.addEventListener('click', (e) => {
         if (e.target === modal) {
             modal.classList.remove('show');
+            stopModalPhotoRotation();
         }
     });
 
@@ -653,6 +743,7 @@ function setupModal() {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && modal.classList.contains('show')) {
             modal.classList.remove('show');
+            stopModalPhotoRotation();
         }
     });
 }
@@ -865,21 +956,18 @@ function showEffectForColumn(columnId) {
     // Handle "random" effect
     if (effectName === 'random') {
         effectName = ALL_EFFECTS[Math.floor(Math.random() * ALL_EFFECTS.length)];
-        console.log(`Random effect selected: ${effectName}`);
     }
 
     // Execute the effect
     const effectFunction = EFFECTS_LIBRARY[effectName];
     if (effectFunction) {
         effectFunction(columnId);
-    } else {
-        console.warn(`Effect "${effectName}" not found in library`);
     }
 }
 
 // Error handler for images
 document.addEventListener('error', (e) => {
     if (e.target.tagName === 'IMG') {
-        console.warn('Image failed to load:', e.target.src);
+        // Silent fallback for image loading errors
     }
 }, true);

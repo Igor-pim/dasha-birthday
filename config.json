@@ -1,6 +1,8 @@
 {
-  "title": "Поздравление для Даши Федосеевой",
-  "subtitle": "Руководитель сектора сопровождения и сервисов",
+  "title": "CongratulationFlow Enterprise для Даши",
+  "subtitle": "Масштабируемая система доставки благодарностей | SLA 99.9%",
+
+  "consoleMessage": "🎉 Даша, как ты попала в консоль разработчика?! 😮\n\nТы же руководитель, а не тестировщик! 😄\n\nНо раз уж ты здесь, то ещё раз от всей души поздравляем тебя с Днём Рождения! 🎊\n\nЖелаем тебе успехов, вдохновения и чтобы все баги обходили твою команду стороной! ✨\n\nС любовью, твоя команда! 💝",
 
   "columns": [
     {
@@ -28,7 +30,7 @@
     },
     {
       "id": "test",
-      "title": "QA",
+      "title": "Task Review",
       "description": "проверка поздравлений",
       "assigneeMode": "specific",
       "assignees": ["qa"],
@@ -56,20 +58,94 @@
     {
       "id": "developers",
       "name": "Разработчики",
-      "photo": "images/devs.jpg",
-      "color": "#667eea"
+      "color": "#667eea",
+      "projects": [
+        {
+          "name": "Pimcore",
+          "photos": [
+            "images/Pimcore developers/photo_2020-10-21_18-55-53.jpg",
+            "images/Pimcore developers/photo_2021-08-30_12-53-46.jpg",
+            "images/Pimcore developers/photo_2022-09-04_16-34-24.jpg",
+            "images/Pimcore developers/photo_2024-04-04_22-16-49.jpg"
+          ]
+        },
+        {
+          "name": "BPM Soft",
+          "photos": [
+            "images/BPM Soft Developers/photo_2024-08-12_15-09-18.jpg",
+            "images/BPM Soft Developers/photo_2025-10-30_09-58-59 (2).jpg",
+            "images/BPM Soft Developers/photo_2025-10-30_09-58-59.jpg",
+            "images/BPM Soft Developers/photo_2025-10-30_09-59-00 (2).jpg",
+            "images/BPM Soft Developers/photo_2025-10-30_09-59-00.jpg"
+          ]
+        }
+      ]
     },
     {
       "id": "analysts",
       "name": "Аналитики",
-      "photo": "images/analysts.svg",
-      "color": "#48bb78"
+      "color": "#48bb78",
+      "projects": [
+        {
+          "name": "Аналитики/Бизнес",
+          "photos": [
+            "images/Analysts/photo_2020-10-21_18-55-53.jpg",
+            "images/Analysts/photo_2023-08-26_22-31-07.jpg",
+            "images/Analysts/photo_2025-06-15_14-19-48.jpg",
+            "images/Analysts/photo_2025-10-30_09-58-59.jpg",
+            "images/Analysts/photo_2025-10-30_11-08-44.jpg"
+          ]
+        }
+      ]
     },
     {
       "id": "qa",
-      "name": "Поддержка/Тестировщики",
-      "photo": "images/qa.svg",
-      "color": "#ed8936"
+      "name": "Служба Поддержки",
+      "color": "#ed8936",
+      "projects": [
+        {
+          "name": "DKS",
+          "photos": [
+            "images/Support DKS/photo_2025-07-14_09-23-07.jpg",
+            "images/Support DKS/photo_2025-10-30_10-48-52.jpg"
+          ]
+        },
+        {
+          "name": "ЕДС",
+          "photos": [
+            "images/Support ЕДС/photo_2025-10-30_10-18-08 (2).jpg",
+            "images/Support ЕДС/photo_2025-10-30_10-18-08 (3).jpg",
+            "images/Support ЕДС/photo_2025-10-30_10-18-08 (4).jpg",
+            "images/Support ЕДС/photo_2025-10-30_10-18-08 (5).jpg",
+            "images/Support ЕДС/photo_2025-10-30_10-18-08 (6).jpg",
+            "images/Support ЕДС/photo_2025-10-30_10-18-08.jpg",
+            "images/Support ЕДС/photo_2025-10-30_10-18-09 (2).jpg",
+            "images/Support ЕДС/photo_2025-10-30_10-18-09 (3).jpg",
+            "images/Support ЕДС/photo_2025-10-30_10-18-09 (4).jpg",
+            "images/Support ЕДС/photo_2025-10-30_10-18-09 (5).jpg",
+            "images/Support ЕДС/photo_2025-10-30_10-18-09.jpg"
+          ]
+        },
+        {
+          "name": "ЕДЦ-КГХ",
+          "photos": [
+            "images/Support ЕДЦ-КГХ/photo_2024-08-12_15-09-18.jpg",
+            "images/Support ЕДЦ-КГХ/photo_2025-10-30_09-58-33 (2).jpg",
+            "images/Support ЕДЦ-КГХ/photo_2025-10-30_09-58-33 (3).jpg",
+            "images/Support ЕДЦ-КГХ/photo_2025-10-30_09-58-33 (4).jpg",
+            "images/Support ЕДЦ-КГХ/photo_2025-10-30_09-58-33.jpg",
+            "images/Support ЕДЦ-КГХ/photo_2025-10-30_09-58-34.jpg"
+          ]
+        },
+        {
+          "name": "СФР-КГХ",
+          "photos": [
+            "images/Support СФР-КГХ/photo_2024-08-12_15-09-18.jpg",
+            "images/Support СФР-КГХ/photo_2025-10-30_09-58-05 (2).jpg",
+            "images/Support СФР-КГХ/photo_2025-10-30_09-58-05.jpg"
+          ]
+        }
+      ]
     }
   ],
 
@@ -267,17 +343,44 @@
     {
       "id": 1,
       "columnId": "backlog",
-      "teamId": "analysts"
+      "teamId": "developers",
+      "projectIndex": 0
     },
     {
       "id": 2,
       "columnId": "backlog",
-      "teamId": "developers"
+      "teamId": "developers",
+      "projectIndex": 1
     },
     {
       "id": 3,
       "columnId": "backlog",
-      "teamId": "qa"
+      "teamId": "analysts",
+      "projectIndex": 0
+    },
+    {
+      "id": 4,
+      "columnId": "backlog",
+      "teamId": "qa",
+      "projectIndex": 0
+    },
+    {
+      "id": 5,
+      "columnId": "backlog",
+      "teamId": "qa",
+      "projectIndex": 1
+    },
+    {
+      "id": 6,
+      "columnId": "backlog",
+      "teamId": "qa",
+      "projectIndex": 2
+    },
+    {
+      "id": 7,
+      "columnId": "backlog",
+      "teamId": "qa",
+      "projectIndex": 3
     }
   ]
 }

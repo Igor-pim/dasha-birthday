@@ -213,9 +213,22 @@ body {
     border: 2px solid white;
 }
 
+.team-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
 .team-name {
     font-weight: 500;
     color: #2d3748;
+    font-size: 0.875rem;
+}
+
+.project-name {
+    font-size: 0.75rem;
+    color: #718096;
+    font-style: italic;
 }
 
 .task-description {
