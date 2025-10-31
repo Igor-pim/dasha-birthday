@@ -78,6 +78,28 @@
             "images/BPM Soft Developers/photo_2025-10-30_09-59-00 (2).jpg",
             "images/BPM Soft Developers/photo_2025-10-30_09-59-00.jpg"
           ]
+        },
+        {
+          "name": "Сервисы Разработка",
+          "photos": [
+            "images/Services developers/lead.jpg",
+            "images/Services developers/photo_2025-10-31_11-33-32.jpg",
+            "images/Services developers/photo_2025-10-31_11-35-02.jpg",
+            "images/Services developers/photo_2025-10-31_11-40-15.jpg",
+            "images/Services developers/photo_2025-10-31_11-50-56.jpg",
+            "images/Services developers/photo_2025-10-31_11-51-09.jpg",
+            "images/Services developers/photo_2025-10-31_11-51-15.jpg",
+            "images/Services developers/photo_2025-10-31_11-52-52.jpg",
+            "images/Services developers/photo_2025-10-31_11-53-00.jpg"
+          ]
+        },
+        {
+          "name": "Сервисы DevOps",
+          "photos": [
+            "images/Services developers/lead.jpg",
+            "images/Services devOps/photo_2025-10-31_11-35-42.jpg",
+            "images/Services devOps/photo_2025-10-31_11-35-59.jpg"
+          ]
         }
       ]
     },
@@ -387,6 +409,18 @@
       "id": 7,
       "columnId": "backlog",
       "teamId": "qa",
+      "projectIndex": 3
+    },
+    {
+      "id": 8,
+      "columnId": "backlog",
+      "teamId": "developers",
+      "projectIndex": 2
+    },
+    {
+      "id": 9,
+      "columnId": "backlog",
+      "teamId": "developers",
       "projectIndex": 3
     }
   ]
